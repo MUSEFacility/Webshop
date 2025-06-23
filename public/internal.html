@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MUSE Dolomites</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        max-width: 600px;
+        margin: auto;
+      }
+      .product,
+      .cart-item {
+        display: flex;
+        justify-content: space-between;
+        margin: 0.5em 0;
+      }
+      .cart {
+        margin-top: 2em;
+        border-top: 1px solid #ddd;
+        padding-top: 1em;
+      }
+      input,
+      button {
+        padding: 0.5em;
+        margin: 0.3em 0;
+        box-sizing: border-box;
+      }
+      button {
+        cursor: pointer;
+      }
+      em,
+      small {
+        color: #555;
+      }
+      /* spinner controls */
+      .qty-control {
+        display: inline-flex;
+        align-items: center;
+      }
+      .qty-control button {
+        width: 2em;
+      }
+      .qty-control input {
+        width: 3em;
+        text-align: center;
+        margin: 0 0.3em;
+      }
+
+      /* Toast container */
+      #toast-container {
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        z-index: 9999;
+      }
+      .toast {
+        min-width: 200px;
+        background: #333;
+        color: #fff;
+        padding: 0.75em 1em;
+        border-radius: 4px;
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        font-size: 0.9rem;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      }
+      .toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Logo + Site Title -->
+    <header style="text-align: center; margin-bottom: 1em">
+      <img
+        src="https://cdn.glitch.global/fb99b62b-e110-4675-895a-39ea4cc88c14/logo.png?v=1749748070022"
+        alt="MUSE Logo"
+        style="max-width: 120px; height: auto; display: block; margin: 0 auto 0.5em;"
+      />
+      <h1>MUSE.holiday Dolomites</h1>
+      <p><em>Owner Webshop - Prezzi sempre mostrati IVA esclusa.</em></p>
+    </header>
+
+    <!-- PRODUCTS LIST -->
+    <div id="products"></div>
+
+    <!-- CART + CHECKOUT FORM -->
+    <div class="cart">
+      <h2>Carrello</h2>
+      <div id="cart-items"></div>
+      <p><strong>Totale: €<span id="total">0.00</span></strong></p>
+      <p><small>Prezzi sempre mostrati IVA esclusa.</small></p>
+
+      <h3>Dettagli Cliente</h3>
+      <input id="name" placeholder="Il tuo nome" required />
+      <input id="email" type="email" placeholder="La tua email" required />
+
+      <button id="checkout">Invia Ordine</button>
+    </div>
+
+    <!-- Toast container -->
+    <div id="toast-container"></div>
+
+    <!-- CART LOGIC & TOAST CODE -->
+    <script>
+      const PRODUCTS = [
+        { id: 1, title: "ASCIUGAMANO BAGNO 100x150", description: "6 per Pacco", price: 9.77 },
+        { id: 2, title: "LENZUOLO C.ANG 2P DELUXE 200x210", description: "5 per Pacco", price: 17.53 },
+        { id: 3, title: "LENZUOLO C.ANG 1P DELUXE 100x210", description: "5 per Pacco", price: 13.74 },
+        { id: 4, title: "LENZUOLO 2P 240x300", description: "10 per Pacco", price: 23.53 },
+        { id: 5, title: "LENZUOLO 1P 160x300", description: "10 per Pacco", price: 15.81 },
+        { id: 6, title: "FEDERA GRANDE 60x80", description: "25 per Pacco", price: 24.44 },
+        { id: 7, title: "FEDERA PICCOLA 50x80", description: "25 per Pacco", price: 22.55 },
+        { id: 8, title: "COPRIPIUMINO 1P 135x200", description: "10 per Pacco", price: 29.79 },
+        { id: 9, title: "TOVAGLIA 150x150", description: "10 per Pacco", price: 24.68 },
+        { id: 10, title: "STROFINACCI PER BICCHIERI 50x70", description: "25 per Pacco", price: 17.2 },
+        { id: 11, title: "SCENDIBAGNO 50x90", description: "12 per Pacco", price: 15.08 },
+        { id: 12, title: "ASCIUGAMANO BIDET 40x60", description: "20 per Pacco", price: 11.53 },
+        { id: 13, title: "ASCIUGAMANO VISO 50x100", description: "12 per Pacco", price: 9.61 },
+      ];
+      const cart = [];
+
+      function renderProducts() {
+        const root = document.getElementById("products");
+        root.innerHTML = "";
+        PRODUCTS.forEach(p => {
+          const div = document.createElement("div");
+          div.className = "product";
+          div.innerHTML = `
+            <div>
+              <div><strong>${p.title} — €${p.price.toFixed(2)}</strong></div>
+              <div><small>${p.description}</small></div>
+            </div>
+            <button onclick="addToCart(${p.id})">+</button>
+          `;
+          root.append(div);
+        });
+      }
+
+      function addToCart(id) {
+        const prod = PRODUCTS.find(x => x.id === id);
+        let line = cart.find(x => x.id === id);
+        if (!line) {
+          line = { ...prod, qty: 0 };
+          cart.push(line);
+        }
+        line.qty++;
+        renderCart();
+      }
+
+      function removeFromCart(id) {
+        const line = cart.find(x => x.id === id);
+        if (!line) return;
+        line.qty--;
+        if (line.qty <= 0) cart.splice(cart.indexOf(line), 1);
+        renderCart();
+      }
+
+      function updateQty(id, qty) {
+        const line = cart.find(x => x.id === id);
+        if (!line) return;
+        const q = parseInt(qty, 10) || 0;
+        if (q <= 0) cart.splice(cart.indexOf(line), 1);
+        else line.qty = q;
+        renderCart();
+      }
+
+      function renderCart() {
+        const root = document.getElementById("cart-items");
+        root.innerHTML = "";
+        let total = 0;
+        cart.forEach(item => {
+          total += item.qty * item.price;
+          const div = document.createElement("div");
+          div.className = "cart-item";
+          div.innerHTML = `
+            <span>${item.title}</span>
+            <div class="qty-control">
+              <button onclick="removeFromCart(${item.id})">−</button>
+              <input
+                type="number"
+                value="${item.qty}"
+                min="0"
+                onchange="updateQty(${item.id}, this.value)"
+              />
+              <button onclick="addToCart(${item.id})">+</button>
+            </div>
+          `;
+          root.append(div);
+        });
+        document.getElementById("total").textContent = total.toFixed(2);
+      }
+
+      // toast helper
+      function showToast(msg, duration = 3000) {
+        const container = document.getElementById("toast-container");
+        const toast = document.createElement("div");
+        toast.className = "toast";
+        toast.textContent = msg;
+        container.append(toast);
+        requestAnimationFrame(() => toast.classList.add("show"));
+        setTimeout(() => {
+          toast.classList.remove("show");
+          toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+        }, duration);
+      }
+
+      // prevent double-submit
+      let isSubmitting = false;
+
+      document.getElementById("checkout").onclick = async () => {
+        if (isSubmitting) return;
+        isSubmitting = true;
+        const btn = document.getElementById("checkout");
+        btn.disabled = true;
+        btn.textContent = "Invio in corso…";
+
+        const name = document.getElementById("name").value.trim();
+        const email = document.getElementById("email").value.trim();
+        if (!name || !email || cart.length === 0) {
+          showToast("Compila nome, email e aggiungi almeno un prodotto.");
+          isSubmitting = false;
+          btn.disabled = false;
+          btn.textContent = "Invia Ordine";
+          return;
+        }
+
+        try {
+          const res = await fetch("/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ name, email, cartJson: JSON.stringify(cart) }),
+          });
+          const { success } = await res.json();
+          if (success) showToast("Ordine inviato! Controlla la tua email per la conferma.");
+          else showToast("Si è verificato un errore—riprovare.");
+        } catch (err) {
+          console.error(err);
+          showToast("Errore di rete—riprovare.");
+        }
+
+        isSubmitting = false;
+        btn.disabled = false;
+        btn.textContent = "Invia Ordine";
+      };
+
+      // initial render
+      renderProducts();
+    </script>
+  </body>
+</html>
