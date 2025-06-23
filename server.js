@@ -11,10 +11,10 @@ const app = express();
 const transporter = nodemailer.createTransport({
   host:   process.env.SMTP_HOST,                    // e.g. "smtp.gmail.com"
   port:   Number(process.env.SMTP_PORT),            // 587 or 465
-  secure: process.env.SMTP_PORT === '465',          // true for 465, false for 587
+  secure: process.env.SMTP_PORT === '465',          // true for 465, false otherwise
   auth: {
-    user: process.env.SMTP_USER,                    // your Gmail address
-    pass: process.env.SMTP_PASS                     // your 16-char App Password
+    user: process.env.SMTP_USER,                    // your shop email
+    pass: process.env.SMTP_PASS                     // your SMTP password/app-password
   }
 });
 
@@ -22,21 +22,33 @@ const transporter = nodemailer.createTransport({
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Serve index.html on GET / for health checks and the front-end
+// Serve the default front-end (could be a selector or external)
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Serve the internal shop page
+app.get('/internal', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'internal.html'));
+});
+
+// Serve the external shop page
+app.get('/external', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'external.html'));
 });
 
 // ─── Checkout endpoint ────────────────────────────────────────────────────────
 app.post('/checkout', async (req, res) => {
   try {
-    const { name, email, cartJson } = req.body;
+    // now reading region as well
+    const { region, name, email, cartJson } = req.body;
     const cart = JSON.parse(cartJson);
 
     // Build the HTML summary
     let total = 0;
     let summaryHtml = `
       <h2>Nuovo ordine da ${name}</h2>
+      <p><strong>Regione:</strong> ${region}</p>
       <p><em>Prezzi sempre mostrati IVA esclusa.</em></p>
       <ul>`;
     cart.forEach(item => {
@@ -53,11 +65,19 @@ app.post('/checkout', async (req, res) => {
       <p><strong>Email cliente:</strong> ${email}</p>
     `;
 
-    // 1) Notify the shop owner (with CC)
+    // Map regions to their CC addresses
+    const ccByRegion = {
+      Dolomites:    'info@muse.holiday',
+      'South Tyrol':'suedtirol@muse.holiday',
+      Garda:        'garda@muse.holiday'
+    };
+    const ccAddress = ccByRegion[region] || process.env.SHOP_CC_EMAIL;
+
+    // 1) Notify the shop owner with region-specific CC
     const infoOwner = await transporter.sendMail({
-      from: `"MUSE.holiday EXTERNAL Biancheria Garda" <${process.env.SMTP_USER}>`,
-      to:   process.env.SHOP_EMAIL,
-      cc:   'garda@muse.holiday',
+      from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
+      to:      process.env.SHOP_EMAIL,
+      cc:      ccAddress,
       subject: `Ordine ricevuto: ${name}`,
       html:    summaryHtml
     });
@@ -66,7 +86,7 @@ app.post('/checkout', async (req, res) => {
     // 2) Confirmation to buyer
     const buyerSubject = `Conferma ordine €${total.toFixed(2)}`;
     const infoBuyer = await transporter.sendMail({
-      from:    `"MUSE.holiday Biancheria Garda" <${process.env.SMTP_USER}>`,
+      from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
       to:      email,
       subject: buyerSubject,
       html:    summaryHtml
@@ -74,7 +94,6 @@ app.post('/checkout', async (req, res) => {
     console.log('BUYER Preview URL:', nodemailer.getTestMessageUrl(infoBuyer));
 
     res.json({ success: true });
-
   } catch (err) {
     console.error('Error in /checkout:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
