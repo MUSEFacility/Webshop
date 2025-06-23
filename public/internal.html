@@ -2,12 +2,16 @@
 <html lang="it">
   <head>
     <meta charset="UTF-8" />
-    <title>MUSE Dolomites</title>
+    <title>MUSE Internal Shop</title>
     <style>
       body {
         font-family: sans-serif;
         max-width: 600px;
         margin: auto;
+      }
+      header {
+        text-align: center;
+        margin-bottom: 1em;
       }
       .product,
       .cart-item {
@@ -21,9 +25,11 @@
         padding-top: 1em;
       }
       input,
+      select,
       button {
         padding: 0.5em;
         margin: 0.3em 0;
+        width: 100%;
         box-sizing: border-box;
       }
       button {
@@ -46,7 +52,6 @@
         text-align: center;
         margin: 0 0.3em;
       }
-
       /* Toast container */
       #toast-container {
         position: fixed;
@@ -76,21 +81,20 @@
     </style>
   </head>
   <body>
-    <!-- Logo + Site Title -->
-    <header style="text-align: center; margin-bottom: 1em">
+    <header>
       <img
-        src="https://cdn.glitch.global/fb99b62b-e110-4675-895a-39ea4cc88c14/logo.png?v=1749748070022"
+        src="logo.png"
         alt="MUSE Logo"
-        style="max-width: 120px; height: auto; display: block; margin: 0 auto 0.5em;"
+        style="max-width:120px; display:block; margin:0 auto .5em"
       />
-      <h1>MUSE.holiday Dolomites</h1>
-      <p><em>Owner Webshop - Prezzi sempre mostrati IVA esclusa.</em></p>
+      <h1>MUSE Internal Shop</h1>
+      <p><em>Prezzi sempre mostrati IVA esclusa.</em></p>
     </header>
 
     <!-- PRODUCTS LIST -->
     <div id="products"></div>
 
-    <!-- CART + CHECKOUT FORM -->
+    <!-- CART + CUSTOMER INFO -->
     <div class="cart">
       <h2>Carrello</h2>
       <div id="cart-items"></div>
@@ -98,33 +102,39 @@
       <p><small>Prezzi sempre mostrati IVA esclusa.</small></p>
 
       <h3>Dettagli Cliente</h3>
+      <select id="region" required>
+        <option value="">Seleziona Regione…</option>
+        <option value="Dolomites">Dolomites</option>
+        <option value="South Tyrol">South Tyrol</option>
+        <option value="Garda">Garda</option>
+      </select>
       <input id="name" placeholder="Il tuo nome" required />
       <input id="email" type="email" placeholder="La tua email" required />
-
       <button id="checkout">Invia Ordine</button>
     </div>
 
     <!-- Toast container -->
     <div id="toast-container"></div>
 
-    <!-- CART LOGIC & TOAST CODE -->
     <script>
+      // ==== PRODUCTS FOR INTERNAL – DOLOMITES ====
       const PRODUCTS = [
-        { id: 1, title: "ASCIUGAMANO BAGNO 100x150", description: "6 per Pacco", price: 9.77 },
-        { id: 2, title: "LENZUOLO C.ANG 2P DELUXE 200x210", description: "5 per Pacco", price: 17.53 },
-        { id: 3, title: "LENZUOLO C.ANG 1P DELUXE 100x210", description: "5 per Pacco", price: 13.74 },
-        { id: 4, title: "LENZUOLO 2P 240x300", description: "10 per Pacco", price: 23.53 },
-        { id: 5, title: "LENZUOLO 1P 160x300", description: "10 per Pacco", price: 15.81 },
-        { id: 6, title: "FEDERA GRANDE 60x80", description: "25 per Pacco", price: 24.44 },
-        { id: 7, title: "FEDERA PICCOLA 50x80", description: "25 per Pacco", price: 22.55 },
-        { id: 8, title: "COPRIPIUMINO 1P 135x200", description: "10 per Pacco", price: 29.79 },
-        { id: 9, title: "TOVAGLIA 150x150", description: "10 per Pacco", price: 24.68 },
-        { id: 10, title: "STROFINACCI PER BICCHIERI 50x70", description: "25 per Pacco", price: 17.2 },
-        { id: 11, title: "SCENDIBAGNO 50x90", description: "12 per Pacco", price: 15.08 },
-        { id: 12, title: "ASCIUGAMANO BIDET 40x60", description: "20 per Pacco", price: 11.53 },
-        { id: 13, title: "ASCIUGAMANO VISO 50x100", description: "12 per Pacco", price: 9.61 },
+        { id: 1,  title: "ASCIUGAMANO BAGNO 100x150",        description: "6 per Pacco",  price:  9.77 },
+        { id: 2,  title: "LENZUOLO C.ANG 2P DELUXE 200x210", description: "5 per Pacco",  price: 17.53 },
+        { id: 3,  title: "LENZUOLO C.ANG 1P DELUXE 100x210", description: "5 per Pacco",  price: 13.74 },
+        { id: 4,  title: "LENZUOLO 2P 240x300",              description: "10 per Pacco", price: 23.53 },
+        { id: 5,  title: "LENZUOLO 1P 160x300",              description: "10 per Pacco", price: 15.81 },
+        { id: 6,  title: "FEDERA GRANDE 60x80",              description: "25 per Pacco", price: 24.44 },
+        { id: 7,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
+        { id: 8,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
+        { id: 9,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
+        { id: 10, title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
+        { id: 11, title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
+        { id: 12, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
+        { id: 13, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
       ];
-      const cart = [];
+
+      let cart = [];
 
       function renderProducts() {
         const root = document.getElementById("products");
@@ -158,7 +168,7 @@
         const line = cart.find(x => x.id === id);
         if (!line) return;
         line.qty--;
-        if (line.qty <= 0) cart.splice(cart.indexOf(line), 1);
+        if (line.qty <= 0) cart = cart.filter(x => x.id !== id);
         renderCart();
       }
 
@@ -166,7 +176,7 @@
         const line = cart.find(x => x.id === id);
         if (!line) return;
         const q = parseInt(qty, 10) || 0;
-        if (q <= 0) cart.splice(cart.indexOf(line), 1);
+        if (q <= 0) cart = cart.filter(x => x.id !== id);
         else line.qty = q;
         renderCart();
       }
@@ -221,33 +231,39 @@
         btn.disabled = true;
         btn.textContent = "Invio in corso…";
 
-        const name = document.getElementById("name").value.trim();
-        const email = document.getElementById("email").value.trim();
-        if (!name || !email || cart.length === 0) {
-          showToast("Compila nome, email e aggiungi almeno un prodotto.");
-          isSubmitting = false;
+        const region = document.getElementById("region").value;
+        const name   = document.getElementById("name").value.trim();
+        const email  = document.getElementById("email").value.trim();
+
+        if (!region || !name || !email || cart.length === 0) {
+          showToast("Seleziona regione, nome, email e aggiungi almeno un prodotto.");
           btn.disabled = false;
           btn.textContent = "Invia Ordine";
+          isSubmitting = false;
           return;
         }
 
         try {
           const res = await fetch("/checkout", {
             method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({ name, email, cartJson: JSON.stringify(cart) }),
+            headers: { "Content-Type":"application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              region,
+              name,
+              email,
+              cartJson: JSON.stringify(cart)
+            })
           });
           const { success } = await res.json();
-          if (success) showToast("Ordine inviato! Controlla la tua email per la conferma.");
-          else showToast("Si è verificato un errore—riprovare.");
-        } catch (err) {
-          console.error(err);
+          if (success) showToast("Ordine inviato! Controlla la tua email.");
+          else showToast("Errore—ricarica e riprova.");
+        } catch {
           showToast("Errore di rete—riprovare.");
         }
 
-        isSubmitting = false;
         btn.disabled = false;
         btn.textContent = "Invia Ordine";
+        isSubmitting = false;
       };
 
       // initial render
