@@ -1,33 +1,125 @@
+```html
 <!DOCTYPE html>
 <html lang="it">
   <head>
     <meta charset="UTF-8" />
     <title>MUSE Internal Shop</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
-      body { font-family: sans-serif; max-width:600px; margin:auto; }
-      header { text-align:center; margin-bottom:1em; }
-      .product, .cart-item { display:flex; justify-content:space-between; align-items:center; margin:.5em 0; }
-      .cart { margin-top:2em; border-top:1px solid #ddd; padding-top:1em; }
-      input, select, button { padding:.5em; margin:.3em 0; box-sizing:border-box; }
-      select, input[type="email"], input[type="text"] { width:100%; }
-      button { cursor:pointer; }
-      em, small { color:#555; }
-      .qty-control { display:inline-flex; align-items:center; }
-      .qty-control button { width:2em; }
-      .qty-control input { width:3em; text-align:center; margin:0 .3em; }
-      #toast-container { position:fixed; bottom:1rem; right:1rem; display:flex; flex-direction:column; gap:.5rem; z-index:9999; }
-      .toast {
-        min-width:200px; background:#333; color:#fff; padding:.75em 1em;
-        border-radius:4px; opacity:0; transform:translateY(20px);
-        transition:opacity .3s ease,transform .3s ease; font-size:.9rem;
-        box-shadow:0 2px 6px rgba(0,0,0,0.2);
+      /* ─── Global & Container ───────────────────────────────── */
+      body {
+        font-family: sans-serif;
+        margin: 0 auto;
+        padding: 1rem;
+        max-width: 800px;
+        box-sizing: border-box;
       }
-      .toast.show { opacity:1; transform:translateY(0); }
+      header {
+        text-align: center;
+        margin-bottom: 1rem;
+      }
+      img {
+        max-width: 120px;
+        display: block;
+        margin: 0 auto 0.5rem;
+      }
+
+      /* ─── Forms & Controls ───────────────────────────────── */
+      select,
+      input[type="text"],
+      input[type="email"],
+      button {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.75em;
+        margin: 0.5em 0;
+        font-size: 1rem;
+      }
+      button {
+        cursor: pointer;
+      }
+
+      /* ─── Product & Cart Layout ───────────────────────────── */
+      .product,
+      .cart-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 0.5em 0;
+        padding: 0.5em;
+        border-radius: 4px;
+        background: #fafafa;
+      }
+      .product div:first-child,
+      .cart-item span {
+        flex: 1;
+        text-align: left;
+      }
+
+      .qty-control {
+        display: inline-flex;
+        align-items: center;
+      }
+      .qty-control button {
+        width: 2.5em;
+        padding: 0.5em;
+      }
+      .qty-control input {
+        width: 3em;
+        text-align: center;
+        margin: 0 0.5em;
+      }
+
+      .cart {
+        margin-top: 2em;
+        border-top: 1px solid #ddd;
+        padding-top: 1em;
+      }
+
+      /* ─── Toasts ──────────────────────────────────────────── */
+      #toast-container {
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        z-index: 9999;
+      }
+      .toast {
+        min-width: 200px;
+        background: #333;
+        color: #fff;
+        padding: 0.75em 1em;
+        border-radius: 4px;
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        font-size: 0.9rem;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      }
+      .toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* ─── Responsive Tweaks ──────────────────────────────── */
+      @media (max-width: 600px) {
+        .product,
+        .cart-item {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .qty-control {
+          margin-top: 0.5em;
+        }
+      }
     </style>
   </head>
+
   <body>
     <header>
-      <img src="logo.png" alt="MUSE Logo" style="max-width:120px; display:block; margin:0 auto .5em" />
+      <img src="logo.png" alt="MUSE Logo" />
       <h1>MUSE Internal Shop</h1>
       <p><em>Prezzi sempre mostrati IVA esclusa.</em></p>
     </header>
@@ -85,8 +177,8 @@
           { id: 5,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
           { id: 6,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
           { id: 7,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
-          { id: 8, title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
-          { id: 9, title: "SCENDIBAGNO 50x90",                 description: "12 per Pacco", price: 15.08 },
+          { id: 8,  title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
+          { id: 9,  title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
           { id: 10, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
           { id: 11, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
         ],
@@ -98,8 +190,8 @@
           { id: 5,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
           { id: 6,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
           { id: 7,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
-          { id: 8, title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
-          { id: 9, title: "SCENDIBAGNO 50x90",                 description: "12 per Pacco", price: 15.08 },
+          { id: 8,  title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
+          { id: 9,  title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
           { id: 10, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
           { id: 11, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
         ]
@@ -254,3 +346,4 @@
     </script>
   </body>
 </html>
+```
