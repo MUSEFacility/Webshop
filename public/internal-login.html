@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Accesso Interno</title>
+  <style>
+    body { font-family: sans-serif; max-width:400px; margin:5em auto; text-align:center; }
+    input, button { width:100%; padding:.5em; margin:.5em 0; box-sizing:border-box; }
+    .error { color: #c00; height:1.2em; }
+  </style>
+</head>
+<body>
+  <h1>Area Riservata</h1>
+  <div class="error">
+    <script>
+      if (new URLSearchParams(location.search).get('error') === '1')
+        document.write('Password errata, riprova.');
+    </script>
+  </div>
+  <form method="POST" action="/internal">
+    <input type="password" name="password" placeholder="Inserisci password" required autofocus />
+    <button type="submit">Accedi</button>
+  </form>
+</body>
+</html>
