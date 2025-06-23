@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="it">
   <head>
@@ -56,20 +55,29 @@
         text-align: left;
       }
 
+      /* ─── Quantity Controls (full-width) ─────────────────── */
       .qty-control {
-        display: inline-flex;
-        align-items: center;
+        display: flex;
+        width: 100%;
+        max-width: 240px;
+        margin: 0.5em auto;
+        justify-content: space-between;
+        box-sizing: border-box;
+      }
+      .qty-control button,
+      .qty-control input {
+        flex: 1;
+        min-width: 0;
+        margin: 0 0.25em;
       }
       .qty-control button {
-        width: 2.5em;
         padding: 0.5em;
       }
       .qty-control input {
-        width: 3em;
         text-align: center;
-        margin: 0 0.5em;
       }
 
+      /* ─── Cart Section ───────────────────────────────────── */
       .cart {
         margin-top: 2em;
         border-top: 1px solid #ddd;
@@ -111,7 +119,13 @@
           align-items: flex-start;
         }
         .qty-control {
-          margin-top: 0.5em;
+          max-width: none;
+          padding: 0 1rem;
+        }
+        .qty-control button,
+        .qty-control input {
+          padding: 0.75em;
+          font-size: 1.1rem;
         }
       }
     </style>
@@ -147,7 +161,6 @@
       <input id="email" type="email" placeholder="La tua email" required />
       <button id="checkout">Invia Ordine</button>
     </div>
-
     <!-- Toast container -->
     <div id="toast-container"></div>
 
