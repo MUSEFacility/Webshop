@@ -13,15 +13,8 @@
         max-width: 800px;
         box-sizing: border-box;
       }
-      header {
-        text-align: center;
-        margin-bottom: 1rem;
-      }
-      img {
-        max-width: 120px;
-        display: block;
-        margin: 0 auto 0.5rem;
-      }
+      header { text-align: center; margin-bottom: 1rem; }
+      img { max-width: 120px; display: block; margin: 0 auto 0.5rem; }
 
       /* ─── Forms & Controls ───────────────────────────────── */
       select,
@@ -49,10 +42,7 @@
         background: #fafafa;
       }
       .product div:first-child,
-      .cart-item span {
-        flex: 1;
-        text-align: left;
-      }
+      .cart-item span { flex: 1; text-align: left; }
 
       /* ─── Quantity Controls (full-width) ─────────────────── */
       .qty-control {
@@ -64,11 +54,7 @@
         box-sizing: border-box;
       }
       .qty-control button,
-      .qty-control input {
-        flex: 1;
-        min-width: 0;
-        margin: 0 0.25em;
-      }
+      .qty-control input { flex: 1; min-width: 0; margin: 0 0.25em; }
       .qty-control button { padding: 0.5em; }
       .qty-control input  { text-align: center; }
 
@@ -79,14 +65,25 @@
         padding-top: 1em;
       }
 
-      /* ─── Val Gardena Quote Box ──────────────────────────── */
+      /* ─── Val Gardena Cleaning Drawer ────────────────────── */
+      .vg-toggle {
+        display: none; /* shown only if region=Val Gardena */
+        border: 1px dashed #ddd;
+        padding: 0.75em 1em;
+        border-radius: 6px;
+        background: #fcfcfc;
+        margin: 1em 0 0.5em;
+      }
+      .vg-toggle label {
+        display: flex; align-items: center; gap: .5em; cursor: pointer;
+      }
       .vg-box {
-        display: none;
+        display: none; /* shown only when toggle checked */
         border: 1px solid #eee;
         padding: 1em;
         border-radius: 6px;
-        margin: 1em 0;
-        background: #fcfcfc;
+        margin: 0.5em 0 1em;
+        background: #fff;
       }
       .vg-box h3 { margin-top: 0; }
 
@@ -102,34 +99,19 @@
       }
       .toast {
         min-width: 200px;
-        background: #333;
-        color: #fff;
-        padding: 0.75em 1em;
-        border-radius: 4px;
-        opacity: 0;
-        transform: translateY(20px);
-        transition: opacity 0.3s ease, transform 0.3s ease;
-        font-size: 0.9rem;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        background: #333; color: #fff;
+        padding: 0.75em 1em; border-radius: 4px;
+        opacity: 0; transform: translateY(20px);
+        transition: opacity .3s ease, transform .3s ease;
+        font-size: 0.9rem; box-shadow: 0 2px 6px rgba(0,0,0,.2);
       }
       .toast.show { opacity: 1; transform: translateY(0); }
 
       /* ─── Responsive Tweaks ──────────────────────────────── */
       @media (max-width: 600px) {
-        .product,
-        .cart-item {
-          flex-direction: column;
-          align-items: flex-start;
-        }
-        .qty-control {
-          max-width: none;
-          padding: 0 1rem;
-        }
-        .qty-control button,
-        .qty-control input {
-          padding: 0.75em;
-          font-size: 1.1rem;
-        }
+        .product, .cart-item { flex-direction: column; align-items: flex-start; }
+        .qty-control { max-width: none; padding: 0 1rem; }
+        .qty-control button, .qty-control input { padding: 0.75em; font-size: 1.1rem; }
       }
     </style>
   </head>
@@ -150,7 +132,15 @@
       <option value="Garda">Garda</option>
     </select>
 
-    <!-- CLEANING QUOTE (Val Gardena only) -->
+    <!-- CLEANING DRAWER (visible for Val Gardena) -->
+    <div id="vg-toggle" class="vg-toggle">
+      <label>
+        <input type="checkbox" id="cleaningDrawer" />
+        Richiedi preventivo per la <strong>pulizia appartamento</strong> (Val Gardena)
+      </label>
+    </div>
+
+    <!-- CLEANING QUOTE (shown when drawer checked) -->
     <div id="vg-quote" class="vg-box">
       <h3>Richiedi Preventivo Pulizia (Val Gardena)</h3>
       <input id="aptId" type="text" placeholder="ID Appartamento (4–5 caratteri alfanumerici)" maxlength="5" />
@@ -159,9 +149,15 @@
       <small style="display:block;margin-top:.5em;color:#555">
         La richiesta deve essere inviata almeno <strong>72 ore</strong> prima della mezzanotte del giorno scelto.
       </small>
+     <!-- NEW DISCLAIMER LINE -->
+    <small style="display:block;margin-top:.25em;color:#555">
+    <strong>Importante:</strong> l’invio della richiesta <em>non</em> costituisce conferma del servizio.
+    La pulizia sarà effettuata solo dopo una <strong>conferma scritta da MUSE.holiday</strong>.
+    </small>
+
     </div>
 
-    <!-- PRODUCTS LIST -->
+    <!-- PRODUCTS LIST (always visible; Val Gardena now has its own catalog key) -->
     <div id="products"></div>
 
     <!-- CART + CHECKOUT FORM -->
@@ -182,7 +178,8 @@
     <script>
       // 1) Define per-region catalogs
       const PRODUCTS_BY_REGION = {
-        Dolomites: [
+        /* Use the Dolomites list as the catalog for Val Gardena too */
+        "Val Gardena": [
           { id: 1,  title: "ASCIUGAMANO BAGNO 100x150",        description: "6 per Pacco",  price:  9.77 },
           { id: 2,  title: "LENZUOLO C.ANG 2P DELUXE 200x210", description: "5 per Pacco",  price: 17.53 },
           { id: 3,  title: "LENZUOLO C.ANG 1P DELUXE 100x210", description: "5 per Pacco",  price: 13.74 },
@@ -228,10 +225,12 @@
       let currentProducts = [];
       let cart = [];
 
-      // Elements for Val Gardena quote
-      const vgBox    = document.getElementById('vg-quote');
-      const regionEl = document.getElementById('region');
-      const dateEl   = document.getElementById('cleanDate');
+      // Elements for Val Gardena cleaning quote
+      const vgBox      = document.getElementById('vg-quote');
+      const vgToggle   = document.getElementById('vg-toggle');
+      const drawerEl   = document.getElementById('cleaningDrawer');
+      const regionEl   = document.getElementById('region');
+      const dateEl     = document.getElementById('cleanDate');
 
       function setMinDate72h() {
         // UI hint only — server enforces exact rule
@@ -242,6 +241,15 @@
         const dd   = String(hint.getDate()).padStart(2, '0');
         if (dateEl) dateEl.min = `${yyyy}-${mm}-${dd}`;
       }
+
+      function updateVGVisibility(){
+        const isVG = regionEl.value === 'Val Gardena';
+        vgToggle.style.display = isVG ? 'block' : 'none';
+        vgBox.style.display    = (isVG && drawerEl.checked) ? 'block' : 'none';
+        if (isVG) setMinDate72h();
+      }
+
+      drawerEl.addEventListener('change', updateVGVisibility);
 
       // 2) Render products with spinner controls
       function renderProducts() {
@@ -335,20 +343,16 @@
         },duration);
       }
 
-      // 6) Region change (also toggles Val Gardena box)
+      // 6) Region change (keep products AND control drawer)
       regionEl.onchange = function(){
         cart = [];
         renderCart();
         currentProducts = PRODUCTS_BY_REGION[this.value] || [];
         renderProducts();
-
-        // Toggle quote box for Val Gardena
-        const isVG = this.value === 'Val Gardena';
-        vgBox.style.display = isVG ? 'block' : 'none';
-        if (isVG) setMinDate72h();
+        updateVGVisibility();
       };
 
-      // 7) Prevent double‐submit & checkout
+      // 7) Checkout
       let isSubmitting = false;
       document.getElementById("checkout").onclick = async ()=>{
         if(isSubmitting) return;
@@ -412,6 +416,8 @@
             showToast('Richiesta inviata! Controlla la tua email.');
             document.getElementById('aptId').value = '';
             document.getElementById('cleanDate').value = '';
+            drawerEl.checked = false;
+            updateVGVisibility();
           } else {
             showToast(data.error || 'Errore nella richiesta.');
           }
@@ -420,7 +426,7 @@
         }
       });
 
-      // initial render
+      // initial render (keep products empty until region selected)
       renderCart();
     </script>
   </body>
