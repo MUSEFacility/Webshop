@@ -10,41 +10,31 @@ const app = express();
 
 /* ────────────────────────── DOMAIN REDIRECTS ──────────────────────────
    Redirect www.musevision.it and *.fly.dev → https://musevision.it
-   (Place before other routes)
-*/
+   (Place before other routes) */
 app.use((req, res, next) => {
   const host = (req.hostname || '').toLowerCase();
-  if (host === 'www.musevision.it' || host.endsWith('.fly.dev')) {
+  if (host === 'www.musevision.it') {
+    return res.redirect(301, 'https://musevision.it' + req.originalUrl);
+  }
+  if (host.endsWith('.fly.dev')) {
     return res.redirect(301, 'https://musevision.it' + req.originalUrl);
   }
   next();
 });
 
-/* ─────────────────────────── SMTP TRANSPORT ───────────────────────────
-   Works with Gmail SMTP:
-     SMTP_HOST=smtp.gmail.com
-     SMTP_PORT=587
-     SMTP_USER=you@gmail.com
-     SMTP_PASS=app_password
-*/
+/* ─────────────────────────── SMTP TRANSPORT ─────────────────────────── */
 const transporter = nodemailer.createTransport({
   host:   process.env.SMTP_HOST,
   port:   Number(process.env.SMTP_PORT),
-  secure: String(process.env.SMTP_PORT) === '465', // TLS on 465 only
+  secure: process.env.SMTP_PORT === '465', // true only for 465
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS
-  },
-  // gentle timeouts to avoid ETIMEDOUT hanging
-  connectionTimeout: 15_000,
-  greetingTimeout:   10_000,
-  socketTimeout:     30_000,
-  // for port 587 STARTTLS
-  requireTLS: String(process.env.SMTP_PORT) === '587'
+  }
 });
 
 /* ────────────────────────────── HELPERS ─────────────────────────────── */
-const BASE_URL       = process.env.APP_BASE_URL || 'https://musevision.it';
+const BASE_URL = process.env.APP_BASE_URL || 'https://musevision.it';
 const SIGNING_SECRET = process.env.QUOTE_SIGNING_SECRET || 'CHANGE_ME';
 
 // Sign/verify small payloads for emailed decision links
@@ -100,7 +90,7 @@ app.get('/external', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'external.html'));
 });
 
-// Checkout (laundry order)
+// Checkout (existing)
 app.post('/checkout', async (req, res) => {
   try {
     const { region, name, email, cartJson } = req.body;
@@ -133,19 +123,25 @@ app.post('/checkout', async (req, res) => {
     };
     const ccAddress = ccByRegion[region] || process.env.SHOP_CC_EMAIL;
 
-    await transporter.sendMail({
-      from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
-      to:      process.env.SHOP_EMAIL,
-      cc:      ccAddress,
-      subject: `Ordine ricevuto: ${name}`,
-      html:    summaryHtml
-    });
-
-    await transporter.sendMail({
-      from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
-      to:      email,
-      subject: `Conferma ordine €${total.toFixed(2)}`,
-      html:    summaryHtml
+    // Send emails in the background so checkout responds fast
+    setImmediate(async () => {
+      try {
+        await transporter.sendMail({
+          from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
+          to:      process.env.SHOP_EMAIL,
+          cc:      ccAddress,
+          subject: `Ordine ricevuto: ${name}`,
+          html:    summaryHtml
+        });
+        await transporter.sendMail({
+          from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
+          to:      email,
+          subject: `Conferma ordine €${total.toFixed(2)}`,
+          html:    summaryHtml
+        });
+      } catch (e) {
+        console.error('Background email error (/checkout):', e);
+      }
     });
 
     res.json({ success: true });
@@ -157,21 +153,26 @@ app.post('/checkout', async (req, res) => {
 
 /* ─────────────── Cleaning Quote (Internal, Val Gardena) ───────────────
    POST /cleaning-quote   → user submits (region=Val Gardena, aptId, date)
-   GET  /quote/decision   → open from email to Accept/Deny (with price)
-   POST /quote/decision   → submit Accept/Deny; system emails requester
+   GET  /quote/decision   → you open from email to Accept/Deny (with price)
+   POST /quote/decision   → you submit Accept/Deny; system emails requester
 */
 
 // User submits quote request
-app.post('/cleaning-quote', (req, res) => {
+app.post('/cleaning-quote', async (req, res) => {
   try {
     const { region, name, email, apartmentId, dateISO } = req.body;
 
+    // Eligibility: region Val Gardena
     if (region !== 'Val Gardena') {
       return res.status(400).json({ success: false, error: 'Disponibile solo per Val Gardena.' });
     }
+
+    // ID 4–5 alphanumeric
     if (!/^[A-Za-z0-9]{4,5}$/.test(String(apartmentId || ''))) {
       return res.status(400).json({ success: false, error: 'ID appartamento non valido.' });
     }
+
+    // Must be requested 72h in advance (before 00:00 of chosen day)
     if (!is72hBeforeMidnight(dateISO)) {
       return res.status(400).json({
         success: false,
@@ -179,21 +180,32 @@ app.post('/cleaning-quote', (req, res) => {
       });
     }
 
+    // Build decision link
     const payload = {
       type: 'cleaning-quote',
       region, name, email,
       apartmentId, dateISO,
       requestedAt: Date.now()
     };
-    const token       = signToken(payload);
+    const token = signToken(payload);
     const decisionURL = `${BASE_URL}/quote/decision?token=${encodeURIComponent(token)}`;
 
-    // Reply immediately to the browser so UI doesn’t hang
-    res.json({ success: true });
+    // ── NEW: expose the decisionURL in the API response for testing ──
+    const exposeLink =
+      process.env.EXPOSE_DECISION_URL === 'true' || req.query.debug === '1';
 
-    // Send emails in background
+    if (exposeLink) {
+      res.json({ success: true, decisionURL });
+    } else {
+      res.json({ success: true });
+    }
+
+    console.log('[cleaning-quote] decisionURL:', decisionURL);
+
+    // Send emails in the background (won’t block the response)
     setImmediate(async () => {
       try {
+        // Email owner (you)
         const ownerHtml = `
           <h2>Nuova richiesta preventivo pulizia (Val Gardena)</h2>
           <p><strong>Cliente:</strong> ${name} &lt;${email}&gt;</p>
@@ -210,6 +222,7 @@ app.post('/cleaning-quote', (req, res) => {
           html: ownerHtml
         });
 
+        // Email requester (with disclaimer: request ≠ confirmation)
         const clientHtml = `
           <h2>Richiesta preventivo inviata</h2>
           <p>Grazie ${name}, abbiamo ricevuto la tua richiesta per la pulizia dell'appartamento
@@ -224,13 +237,14 @@ app.post('/cleaning-quote', (req, res) => {
           subject: `Richiesta preventivo pulizia ricevuta — ${apartmentId} (${dateISO})`,
           html: clientHtml
         });
-      } catch (err) {
-        console.error('Background email error (/cleaning-quote):', err);
+      } catch (e) {
+        console.error('Background email error (/cleaning-quote):', e);
       }
     });
   } catch (err) {
     console.error('Error /cleaning-quote:', err);
-    if (!res.headersSent) res.status(500).json({ success: false, error: 'Errore interno' });
+    // Even on error here, return a generic failure
+    res.status(500).json({ success: false, error: 'Errore interno' });
   }
 });
 
@@ -302,6 +316,7 @@ app.post('/quote/decision', async (req, res) => {
         <p><strong>Prezzo:</strong> €${price.toFixed(2)} (IVA esclusa, salvo diverse indicazioni)</p>
         <p>Questa email costituisce <strong>conferma scritta</strong> della prenotazione.</p>
       `;
+      // background send not strictly necessary here, but fast enough:
       await transporter.sendMail({
         from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
         to:   data.email,
@@ -325,12 +340,18 @@ app.post('/quote/decision', async (req, res) => {
     }
 
     // Notify owner (thread)
-    await transporter.sendMail({
-      from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
-      to:   process.env.SHOP_EMAIL,
-      subject: `Decisione inviata — ${String(action).toUpperCase()} — ${data.apartmentId} (${data.dateISO})`,
-      html: `<p>Decisione: <strong>${action}</strong> ${price ? `— Prezzo €${price.toFixed(2)}` : ''}<br/>
-             Cliente: ${data.name} &lt;${data.email}&gt;</p>`
+    setImmediate(async () => {
+      try {
+        await transporter.sendMail({
+          from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
+          to:   process.env.SHOP_EMAIL,
+          subject: `Decisione inviata — ${String(action).toUpperCase()} — ${data.apartmentId} (${data.dateISO})`,
+          html: `<p>Decisione: <strong>${action}</strong> ${price ? `— Prezzo €${price.toFixed(2)}` : ''}<br/>
+                 Cliente: ${data.name} &lt;${data.email}&gt;</p>`
+        });
+      } catch (e) {
+        console.error('Background email error (/quote/decision notify):', e);
+      }
     });
 
     res.send('Decisione inviata con successo. Puoi chiudere questa pagina.');
