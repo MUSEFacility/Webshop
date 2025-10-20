@@ -27,6 +27,7 @@
       select,
       input[type="text"],
       input[type="email"],
+      input[type="date"],
       button {
         width: 100%;
         box-sizing: border-box;
@@ -34,9 +35,7 @@
         margin: 0.5em 0;
         font-size: 1rem;
       }
-      button {
-        cursor: pointer;
-      }
+      button { cursor: pointer; }
 
       /* ─── Product & Cart Layout ───────────────────────────── */
       .product,
@@ -70,12 +69,8 @@
         min-width: 0;
         margin: 0 0.25em;
       }
-      .qty-control button {
-        padding: 0.5em;
-      }
-      .qty-control input {
-        text-align: center;
-      }
+      .qty-control button { padding: 0.5em; }
+      .qty-control input  { text-align: center; }
 
       /* ─── Cart Section ───────────────────────────────────── */
       .cart {
@@ -83,6 +78,17 @@
         border-top: 1px solid #ddd;
         padding-top: 1em;
       }
+
+      /* ─── Val Gardena Quote Box ──────────────────────────── */
+      .vg-box {
+        display: none;
+        border: 1px solid #eee;
+        padding: 1em;
+        border-radius: 6px;
+        margin: 1em 0;
+        background: #fcfcfc;
+      }
+      .vg-box h3 { margin-top: 0; }
 
       /* ─── Toasts ──────────────────────────────────────────── */
       #toast-container {
@@ -106,10 +112,7 @@
         font-size: 0.9rem;
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
       }
-      .toast.show {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      .toast.show { opacity: 1; transform: translateY(0); }
 
       /* ─── Responsive Tweaks ──────────────────────────────── */
       @media (max-width: 600px) {
@@ -141,11 +144,22 @@
     <!-- REGION SELECTOR -->
     <h3>Dettagli Cliente</h3>
     <select id="region" required>
-      <option value="">Seleziona dove ritri la biancheria…</option>
-      <option value="Dolomites">Val Gardena</option>
+      <option value="">Seleziona dove ritiri la biancheria…</option>
+      <option value="Val Gardena">Val Gardena</option>
       <option value="South Tyrol">Caldaro</option>
       <option value="Garda">Garda</option>
     </select>
+
+    <!-- CLEANING QUOTE (Val Gardena only) -->
+    <div id="vg-quote" class="vg-box">
+      <h3>Richiedi Preventivo Pulizia (Val Gardena)</h3>
+      <input id="aptId" type="text" placeholder="ID Appartamento (4–5 caratteri alfanumerici)" maxlength="5" />
+      <input id="cleanDate" type="date" />
+      <button id="sendQuote">Richiedi Preventivo</button>
+      <small style="display:block;margin-top:.5em;color:#555">
+        La richiesta deve essere inviata almeno <strong>72 ore</strong> prima della mezzanotte del giorno scelto.
+      </small>
+    </div>
 
     <!-- PRODUCTS LIST -->
     <div id="products"></div>
@@ -161,6 +175,7 @@
       <input id="email" type="email" placeholder="La tua email" required />
       <button id="checkout">Invia Ordine</button>
     </div>
+
     <!-- Toast container -->
     <div id="toast-container"></div>
 
@@ -213,12 +228,26 @@
       let currentProducts = [];
       let cart = [];
 
+      // Elements for Val Gardena quote
+      const vgBox    = document.getElementById('vg-quote');
+      const regionEl = document.getElementById('region');
+      const dateEl   = document.getElementById('cleanDate');
+
+      function setMinDate72h() {
+        // UI hint only — server enforces exact rule
+        const now  = new Date();
+        const hint = new Date(now.getTime() + 72 * 60 * 60 * 1000 + 24 * 60 * 60 * 1000); // 72h + 1 day
+        const yyyy = hint.getFullYear();
+        const mm   = String(hint.getMonth() + 1).padStart(2, '0');
+        const dd   = String(hint.getDate()).padStart(2, '0');
+        if (dateEl) dateEl.min = `${yyyy}-${mm}-${dd}`;
+      }
+
       // 2) Render products with spinner controls
       function renderProducts() {
         const root = document.getElementById("products");
         root.innerHTML = "";
         currentProducts.forEach(p => {
-          // find current qty in cart
           const line = cart.find(x => x.id === p.id);
           const qty  = line ? line.qty : 0;
 
@@ -306,12 +335,17 @@
         },duration);
       }
 
-      // 6) Region change
-      document.getElementById("region").onchange = function(){
+      // 6) Region change (also toggles Val Gardena box)
+      regionEl.onchange = function(){
         cart = [];
         renderCart();
         currentProducts = PRODUCTS_BY_REGION[this.value] || [];
         renderProducts();
+
+        // Toggle quote box for Val Gardena
+        const isVG = this.value === 'Val Gardena';
+        vgBox.style.display = isVG ? 'block' : 'none';
+        if (isVG) setMinDate72h();
       };
 
       // 7) Prevent double‐submit & checkout
@@ -323,7 +357,7 @@
         btn.disabled = true;
         btn.textContent = "Invio in corso…";
 
-        const region = document.getElementById("region").value;
+        const region = regionEl.value;
         const name   = document.getElementById("name").value.trim();
         const email  = document.getElementById("email").value.trim();
         if(!region||!name||!email||cart.length===0){
@@ -354,9 +388,40 @@
         isSubmitting = false;
       };
 
+      // 8) Submit Val Gardena cleaning quote
+      document.getElementById('sendQuote').addEventListener('click', async () => {
+        const region = regionEl.value;
+        const name   = document.getElementById('name').value.trim();
+        const email  = document.getElementById('email').value.trim();
+        const apartmentId = document.getElementById('aptId').value.trim();
+        const dateISO     = document.getElementById('cleanDate').value;
+
+        if (region !== 'Val Gardena') return showToast('Disponibile solo per Val Gardena.');
+        if (!/^[A-Za-z0-9]{4,5}$/.test(apartmentId)) return showToast('ID appartamento non valido (4–5 caratteri).');
+        if (!dateISO) return showToast('Seleziona una data.');
+        if (!name || !email) return showToast('Inserisci nome ed email (usati per la conferma).');
+
+        try {
+          const res = await fetch('/cleaning-quote', {
+            method: 'POST',
+            headers: { 'Content-Type':'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ region, name, email, apartmentId, dateISO })
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast('Richiesta inviata! Controlla la tua email.');
+            document.getElementById('aptId').value = '';
+            document.getElementById('cleanDate').value = '';
+          } else {
+            showToast(data.error || 'Errore nella richiesta.');
+          }
+        } catch {
+          showToast('Errore di rete, riprova.');
+        }
+      });
+
       // initial render
       renderCart();
     </script>
   </body>
 </html>
-```
