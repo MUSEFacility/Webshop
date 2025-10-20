@@ -17,11 +17,7 @@
       img { max-width: 120px; display: block; margin: 0 auto 0.5rem; }
 
       /* ─── Forms & Controls ───────────────────────────────── */
-      select,
-      input[type="text"],
-      input[type="email"],
-      input[type="date"],
-      button {
+      select, input[type="text"], input[type="email"], input[type="date"], button {
         width: 100%;
         box-sizing: border-box;
         padding: 0.75em;
@@ -31,8 +27,7 @@
       button { cursor: pointer; }
 
       /* ─── Product & Cart Layout ───────────────────────────── */
-      .product,
-      .cart-item {
+      .product, .cart-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -41,8 +36,7 @@
         border-radius: 4px;
         background: #fafafa;
       }
-      .product div:first-child,
-      .cart-item span { flex: 1; text-align: left; }
+      .product div:first-child, .cart-item span { flex: 1; text-align: left; }
 
       /* ─── Quantity Controls (full-width) ─────────────────── */
       .qty-control {
@@ -53,56 +47,31 @@
         justify-content: space-between;
         box-sizing: border-box;
       }
-      .qty-control button,
-      .qty-control input { flex: 1; min-width: 0; margin: 0 0.25em; }
+      .qty-control button, .qty-control input { flex: 1; min-width: 0; margin: 0 0.25em; }
       .qty-control button { padding: 0.5em; }
       .qty-control input  { text-align: center; }
 
       /* ─── Cart Section ───────────────────────────────────── */
-      .cart {
-        margin-top: 2em;
-        border-top: 1px solid #ddd;
-        padding-top: 1em;
-      }
+      .cart { margin-top: 2em; border-top: 1px solid #ddd; padding-top: 1em; }
 
       /* ─── Val Gardena Cleaning Drawer ────────────────────── */
       .vg-toggle {
-        display: none; /* shown only if region=Val Gardena */
-        border: 1px dashed #ddd;
-        padding: 0.75em 1em;
-        border-radius: 6px;
-        background: #fcfcfc;
-        margin: 1em 0 0.5em;
+        display: none; /* visible only if region = Val Gardena */
+        border: 1px dashed #ddd; padding: 0.75em 1em; border-radius: 6px;
+        background: #fcfcfc; margin: 1em 0 0.5em;
       }
-      .vg-toggle label {
-        display: flex; align-items: center; gap: .5em; cursor: pointer;
-      }
+      .vg-toggle label { display: flex; align-items: center; gap: .5em; cursor: pointer; }
       .vg-box {
-        display: none; /* shown only when toggle checked */
-        border: 1px solid #eee;
-        padding: 1em;
-        border-radius: 6px;
-        margin: 0.5em 0 1em;
-        background: #fff;
+        display: none; /* show when drawer checked */
+        border: 1px solid #eee; padding: 1em; border-radius: 6px; margin: 0.5em 0 1em; background: #fff;
       }
       .vg-box h3 { margin-top: 0; }
 
       /* ─── Toasts ──────────────────────────────────────────── */
-      #toast-container {
-        position: fixed;
-        bottom: 1rem;
-        right: 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        z-index: 9999;
-      }
+      #toast-container { position: fixed; bottom: 1rem; right: 1rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 9999; }
       .toast {
-        min-width: 200px;
-        background: #333; color: #fff;
-        padding: 0.75em 1em; border-radius: 4px;
-        opacity: 0; transform: translateY(20px);
-        transition: opacity .3s ease, transform .3s ease;
+        min-width: 200px; background: #333; color: #fff; padding: 0.75em 1em; border-radius: 4px;
+        opacity: 0; transform: translateY(20px); transition: opacity .3s ease, transform .3s ease;
         font-size: 0.9rem; box-shadow: 0 2px 6px rgba(0,0,0,.2);
       }
       .toast.show { opacity: 1; transform: translateY(0); }
@@ -123,7 +92,7 @@
       <p><em>Prezzi sempre mostrati IVA esclusa.</em></p>
     </header>
 
-    <!-- REGION SELECTOR -->
+    <!-- CUSTOMER DETAILS (shared by order & cleaning) -->
     <h3>Dettagli Cliente</h3>
     <select id="region" required>
       <option value="">Seleziona dove ritiri la biancheria…</option>
@@ -131,8 +100,10 @@
       <option value="South Tyrol">Caldaro</option>
       <option value="Garda">Garda</option>
     </select>
+    <input id="name" type="text" placeholder="Il tuo nome" />
+    <input id="email" type="email" placeholder="La tua email" />
 
-    <!-- CLEANING DRAWER (visible for Val Gardena) -->
+    <!-- CLEANING DRAWER (only for Val Gardena) -->
     <div id="vg-toggle" class="vg-toggle">
       <label>
         <input type="checkbox" id="cleaningDrawer" />
@@ -140,7 +111,7 @@
       </label>
     </div>
 
-    <!-- CLEANING QUOTE (shown when drawer checked) -->
+    <!-- CLEANING QUOTE FORM -->
     <div id="vg-quote" class="vg-box">
       <h3>Richiedi Preventivo Pulizia (Val Gardena)</h3>
       <input id="aptId" type="text" placeholder="ID Appartamento (4–5 caratteri alfanumerici)" maxlength="5" />
@@ -149,36 +120,33 @@
       <small style="display:block;margin-top:.5em;color:#555">
         La richiesta deve essere inviata almeno <strong>72 ore</strong> prima della mezzanotte del giorno scelto.
       </small>
-     <!-- NEW DISCLAIMER LINE -->
-    <small style="display:block;margin-top:.25em;color:#555">
-    <strong>Importante:</strong> l’invio della richiesta <em>non</em> costituisce conferma del servizio.
-    La pulizia sarà effettuata solo dopo una <strong>conferma scritta da MUSE.holiday</strong>.
-    </small>
-
+      <small style="display:block;margin-top:.25em;color:#555">
+        <strong>Importante:</strong> l’invio della richiesta <em>non</em> è conferma del servizio.
+        La pulizia verrà programmata solo dopo una <strong>conferma scritta da MUSE.holiday</strong>.
+      </small>
     </div>
 
-    <!-- PRODUCTS LIST (always visible; Val Gardena now has its own catalog key) -->
+    <!-- PRODUCTS LIST (always visible) -->
     <div id="products"></div>
 
-    <!-- CART + CHECKOUT FORM -->
+    <!-- CART + CHECKOUT (no name/email here anymore) -->
     <div class="cart">
       <h2>Carrello</h2>
       <div id="cart-items"></div>
       <p><strong>Totale: €<span id="total">0.00</span></strong></p>
       <p><small>Prezzi sempre mostrati IVA esclusa.</small></p>
-
-      <input id="name" type="text" placeholder="Il tuo nome" required />
-      <input id="email" type="email" placeholder="La tua email" required />
-      <button id="checkout">Invia Ordine</button>
+      <button id="checkout" disabled>Invia Ordine</button>
+      <small style="display:block;margin-top:.25em;color:#555">
+        Per la <strong>pulizia</strong> usa il pulsante “Richiedi Preventivo” sopra; non è necessario aggiungere prodotti.
+      </small>
     </div>
 
     <!-- Toast container -->
     <div id="toast-container"></div>
 
     <script>
-      // 1) Define per-region catalogs
+      /* ---------------------------- Catalogs ---------------------------- */
       const PRODUCTS_BY_REGION = {
-        /* Use the Dolomites list as the catalog for Val Gardena too */
         "Val Gardena": [
           { id: 1,  title: "ASCIUGAMANO BAGNO 100x150",        description: "6 per Pacco",  price:  9.77 },
           { id: 2,  title: "LENZUOLO C.ANG 2P DELUXE 200x210", description: "5 per Pacco",  price: 17.53 },
@@ -225,12 +193,15 @@
       let currentProducts = [];
       let cart = [];
 
-      // Elements for Val Gardena cleaning quote
-      const vgBox      = document.getElementById('vg-quote');
-      const vgToggle   = document.getElementById('vg-toggle');
-      const drawerEl   = document.getElementById('cleaningDrawer');
-      const regionEl   = document.getElementById('region');
-      const dateEl     = document.getElementById('cleanDate');
+      // Val Gardena elements
+      const vgBox    = document.getElementById('vg-quote');
+      const vgToggle = document.getElementById('vg-toggle');
+      const drawerEl = document.getElementById('cleaningDrawer');
+      const regionEl = document.getElementById('region');
+      const dateEl   = document.getElementById('cleanDate');
+      const nameEl   = document.getElementById('name');
+      const emailEl  = document.getElementById('email');
+      const checkoutBtn = document.getElementById('checkout');
 
       function setMinDate72h() {
         // UI hint only — server enforces exact rule
@@ -251,7 +222,7 @@
 
       drawerEl.addEventListener('change', updateVGVisibility);
 
-      // 2) Render products with spinner controls
+      /* -------------------------- Rendering --------------------------- */
       function renderProducts() {
         const root = document.getElementById("products");
         root.innerHTML = "";
@@ -268,12 +239,7 @@
             </div>
             <div class="qty-control">
               <button onclick="removeFromCart(${p.id})">−</button>
-              <input 
-                type="number"
-                min="0"
-                value="${qty}"
-                onchange="updateQty(${p.id}, this.value)"
-              />
+              <input type="number" min="0" value="${qty}" onchange="updateQty(${p.id}, this.value)"/>
               <button onclick="addToCart(${p.id})">+</button>
             </div>
           `;
@@ -281,28 +247,23 @@
         });
       }
 
-      // 3) Cart operations
       function addToCart(id) {
         const prod = currentProducts.find(x => x.id === id);
         let line  = cart.find(x => x.id === id);
         if (!line) { line = {...prod, qty:0}; cart.push(line); }
         line.qty++;
-        renderCart();
-        renderProducts();
+        renderCart(); renderProducts();
       }
       function removeFromCart(id) {
         cart = cart.map(x => x.id===id ? {...x,qty:x.qty-1} : x).filter(x => x.qty>0);
-        renderCart();
-        renderProducts();
+        renderCart(); renderProducts();
       }
       function updateQty(id, value) {
         const q = parseInt(value,10) || 0;
         cart = cart.map(x => x.id===id ? {...x,qty:q} : x).filter(x => x.qty>0);
-        renderCart();
-        renderProducts();
+        renderCart(); renderProducts();
       }
 
-      // 4) Render cart
       function renderCart() {
         const root = document.getElementById("cart-items");
         root.innerHTML = "";
@@ -315,88 +276,68 @@
             <span>${item.title}</span>
             <div class="qty-control">
               <button onclick="removeFromCart(${item.id})">−</button>
-              <input 
-                type="number"
-                value="${item.qty}"
-                min="0"
-                onchange="updateQty(${item.id}, this.value)"
-              />
+              <input type="number" value="${item.qty}" min="0" onchange="updateQty(${item.id}, this.value)"/>
               <button onclick="addToCart(${item.id})">+</button>
             </div>
           `;
           root.append(div);
         });
         document.getElementById("total").textContent = total.toFixed(2);
+        checkoutBtn.disabled = cart.length === 0; // enable order only if there are items
       }
 
-      // 5) Toast helper
       function showToast(msg,duration=3000){
         const c = document.getElementById("toast-container");
         const t = document.createElement("div");
-        t.className = "toast";
-        t.textContent = msg;
-        c.append(t);
+        t.className = "toast"; t.textContent = msg; c.append(t);
         requestAnimationFrame(()=>t.classList.add("show"));
-        setTimeout(()=>{
-          t.classList.remove("show");
-          t.addEventListener("transitionend",()=>t.remove(),{once:true});
-        },duration);
+        setTimeout(()=>{ t.classList.remove("show"); t.addEventListener("transitionend",()=>t.remove(),{once:true}); },duration);
       }
 
-      // 6) Region change (keep products AND control drawer)
+      /* ---------------------------- Events ---------------------------- */
       regionEl.onchange = function(){
-        cart = [];
-        renderCart();
+        cart = []; renderCart();
         currentProducts = PRODUCTS_BY_REGION[this.value] || [];
-        renderProducts();
-        updateVGVisibility();
+        renderProducts(); updateVGVisibility();
       };
 
-      // 7) Checkout
+      // ORDER (laundry) — needs region, name, email + at least one product
       let isSubmitting = false;
-      document.getElementById("checkout").onclick = async ()=>{
+      checkoutBtn.onclick = async ()=>{
         if(isSubmitting) return;
-        isSubmitting = true;
-        const btn = document.getElementById("checkout");
-        btn.disabled = true;
-        btn.textContent = "Invio in corso…";
+        isSubmitting = true; checkoutBtn.disabled = true; checkoutBtn.textContent = "Invio in corso…";
 
         const region = regionEl.value;
-        const name   = document.getElementById("name").value.trim();
-        const email  = document.getElementById("email").value.trim();
-        if(!region||!name||!email||cart.length===0){
-          showToast("Seleziona regione, nome, email e aggiungi almeno un prodotto.");
-          btn.disabled = false;
-          btn.textContent = "Invia Ordine";
-          isSubmitting = false;
-          return;
+        const name   = nameEl.value.trim();
+        const email  = emailEl.value.trim();
+
+        if(!region || !name || !email || cart.length===0){
+          showToast("Per inviare un ORDINE: scegli regione, inserisci nome ed email e aggiungi almeno un prodotto.");
+          checkoutBtn.disabled = cart.length === 0 ? true : false;
+          checkoutBtn.textContent = "Invia Ordine"; isSubmitting = false; return;
         }
 
         try {
           const res = await fetch("/checkout", {
             method:"POST",
             headers:{"Content-Type":"application/x-www-form-urlencoded"},
-            body: new URLSearchParams({
-              region, name, email, cartJson: JSON.stringify(cart)
-            })
+            body: new URLSearchParams({ region, name, email, cartJson: JSON.stringify(cart) })
           });
           const { success } = await res.json();
           if(success) showToast("Ordine inviato! Controlla la tua email.");
           else showToast("Errore—riprovare.");
-        } catch {
-          showToast("Errore di rete—riprovare.");
-        }
+        } catch { showToast("Errore di rete—riprovare."); }
 
-        btn.disabled = false;
-        btn.textContent = "Invia Ordine";
+        checkoutBtn.textContent = "Invia Ordine";
+        checkoutBtn.disabled = cart.length === 0;
         isSubmitting = false;
       };
 
-      // 8) Submit Val Gardena cleaning quote
+      // CLEANING QUOTE (Val Gardena) — uses name/email above; no cart needed
       document.getElementById('sendQuote').addEventListener('click', async () => {
         const region = regionEl.value;
-        const name   = document.getElementById('name').value.trim();
-        const email  = document.getElementById('email').value.trim();
+        const name   = nameEl.value.trim();
+        const email  = emailEl.value.trim();
         const apartmentId = document.getElementById('aptId').value.trim();
         const dateISO     = document.getElementById('cleanDate').value;
 
@@ -413,20 +354,17 @@
           });
           const data = await res.json();
           if (data.success) {
-            showToast('Richiesta inviata! Controlla la tua email.');
+            showToast('Richiesta inviata! Riceverai conferma via email (richiesta ≠ conferma).');
             document.getElementById('aptId').value = '';
             document.getElementById('cleanDate').value = '';
-            drawerEl.checked = false;
-            updateVGVisibility();
+            drawerEl.checked = false; updateVGVisibility();
           } else {
             showToast(data.error || 'Errore nella richiesta.');
           }
-        } catch {
-          showToast('Errore di rete, riprova.');
-        }
+        } catch { showToast('Errore di rete, riprova.'); }
       });
 
-      // initial render (keep products empty until region selected)
+      // initial render
       renderCart();
     </script>
   </body>
