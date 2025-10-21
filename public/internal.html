@@ -124,6 +124,10 @@
         <strong>Importante:</strong> l’invio della richiesta <em>non</em> è conferma del servizio.
         La pulizia verrà programmata solo dopo una <strong>conferma scritta da MUSE.holiday</strong>.
       </small>
+      <small style="display:block;margin-top:.25em;color:#b00020">
+        <strong>Nota:</strong> la pulizia <u>NON</u> include biancheria/lavanderia; la fornitura o il ritiro della
+        biancheria va ordinata separatamente nel <strong>carrello</strong>.
+      </small>
     </div>
 
     <!-- PRODUCTS LIST (always visible) -->
@@ -355,6 +359,9 @@
           const data = await res.json();
           if (data.success) {
             showToast('Richiesta inviata! Riceverai conferma via email (richiesta ≠ conferma).');
+            if (data.decisionURL) {
+              console.log('Decision URL (test):', data.decisionURL);
+            }
             document.getElementById('aptId').value = '';
             document.getElementById('cleanDate').value = '';
             drawerEl.checked = false; updateVGVisibility();
