@@ -26,7 +26,7 @@ app.use((req, res, next) => {
 const transporter = nodemailer.createTransport({
   host:   process.env.SMTP_HOST,
   port:   Number(process.env.SMTP_PORT),
-  secure: process.env.SMTP_PORT === '465', // true only for 465
+  secure: process.env.SMTP_PORT === '465',
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS
@@ -36,6 +36,7 @@ const transporter = nodemailer.createTransport({
 /* ────────────────────────────── HELPERS ─────────────────────────────── */
 const BASE_URL = process.env.APP_BASE_URL || 'https://musevision.it';
 const SIGNING_SECRET = process.env.QUOTE_SIGNING_SECRET || 'CHANGE_ME';
+const EXPOSE_DECISION_URL = String(process.env.EXPOSE_DECISION_URL || '').toLowerCase() === 'true';
 
 // Sign/verify small payloads for emailed decision links
 function signToken(obj) {
@@ -123,25 +124,19 @@ app.post('/checkout', async (req, res) => {
     };
     const ccAddress = ccByRegion[region] || process.env.SHOP_CC_EMAIL;
 
-    // Send emails in the background so checkout responds fast
-    setImmediate(async () => {
-      try {
-        await transporter.sendMail({
-          from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
-          to:      process.env.SHOP_EMAIL,
-          cc:      ccAddress,
-          subject: `Ordine ricevuto: ${name}`,
-          html:    summaryHtml
-        });
-        await transporter.sendMail({
-          from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
-          to:      email,
-          subject: `Conferma ordine €${total.toFixed(2)}`,
-          html:    summaryHtml
-        });
-      } catch (e) {
-        console.error('Background email error (/checkout):', e);
-      }
+    await transporter.sendMail({
+      from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
+      to:      process.env.SHOP_EMAIL,
+      cc:      ccAddress,
+      subject: `Ordine ricevuto: ${name}`,
+      html:    summaryHtml
+    });
+
+    await transporter.sendMail({
+      from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
+      to:      email,
+      subject: `Conferma ordine €${total.toFixed(2)}`,
+      html:    summaryHtml
     });
 
     res.json({ success: true });
@@ -162,7 +157,7 @@ app.post('/cleaning-quote', async (req, res) => {
   try {
     const { region, name, email, apartmentId, dateISO } = req.body;
 
-    // Eligibility: region Val Gardena
+    // Eligibility: region Val Gardena — we trust caller page, enforce region here
     if (region !== 'Val Gardena') {
       return res.status(400).json({ success: false, error: 'Disponibile solo per Val Gardena.' });
     }
@@ -190,30 +185,19 @@ app.post('/cleaning-quote', async (req, res) => {
     const token = signToken(payload);
     const decisionURL = `${BASE_URL}/quote/decision?token=${encodeURIComponent(token)}`;
 
-    // ── NEW: expose the decisionURL in the API response for testing ──
-    const exposeLink =
-      process.env.EXPOSE_DECISION_URL === 'true' || req.query.debug === '1';
+    // Email owner (you)
+    const ownerHtml = `
+      <h2>Nuova richiesta preventivo pulizia (Val Gardena)</h2>
+      <p><strong>Cliente:</strong> ${name} &lt;${email}&gt;</p>
+      <p><strong>Appartamento:</strong> ${apartmentId}</p>
+      <p><strong>Data richiesta pulizia:</strong> ${dateISO}</p>
+      <p>Apri per <strong>Accettare</strong> o <strong>Rifiutare</strong> e inserire il prezzo:</p>
+      <p><a href="${decisionURL}">${decisionURL}</a></p>
+    `;
 
-    if (exposeLink) {
-      res.json({ success: true, decisionURL });
-    } else {
-      res.json({ success: true });
-    }
-
-    console.log('[cleaning-quote] decisionURL:', decisionURL);
-
-    // Send emails in the background (won’t block the response)
+    // Send emails in background so API can return quickly
     setImmediate(async () => {
       try {
-        // Email owner (you)
-        const ownerHtml = `
-          <h2>Nuova richiesta preventivo pulizia (Val Gardena)</h2>
-          <p><strong>Cliente:</strong> ${name} &lt;${email}&gt;</p>
-          <p><strong>Appartamento:</strong> ${apartmentId}</p>
-          <p><strong>Data richiesta pulizia:</strong> ${dateISO}</p>
-          <p>Apri per <strong>Accettare</strong> o <strong>Rifiutare</strong> e inserire il prezzo:</p>
-          <p><a href="${decisionURL}">${decisionURL}</a></p>
-        `;
         await transporter.sendMail({
           from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
           to:   process.env.SHOP_EMAIL,
@@ -221,16 +205,21 @@ app.post('/cleaning-quote', async (req, res) => {
           subject: `Richiesta preventivo pulizia — ${name} (${apartmentId})`,
           html: ownerHtml
         });
+      } catch (e) {
+        console.error('Background email error (owner /cleaning-quote):', e);
+      }
 
-        // Email requester (with disclaimer: request ≠ confirmation)
-        const clientHtml = `
-          <h2>Richiesta preventivo inviata</h2>
-          <p>Grazie ${name}, abbiamo ricevuto la tua richiesta per la pulizia dell'appartamento
-          <strong>${apartmentId}</strong> il giorno <strong>${dateISO}</strong>.</p>
-          <p><strong>Importante:</strong> questa è <em>solo</em> una richiesta; la pulizia verrà programmata
-          esclusivamente dopo una <strong>conferma scritta da MUSE.holiday</strong>.</p>
-          <p>Riceverai una risposta con accettazione o rifiuto (ed eventuale prezzo) appena possibile.</p>
-        `;
+      // Email requester (with disclaimers incl. linen not included)
+      const clientHtml = `
+        <h2>Richiesta preventivo inviata</h2>
+        <p>Grazie ${name}, abbiamo ricevuto la tua richiesta per la pulizia dell'appartamento
+        <strong>${apartmentId}</strong> il giorno <strong>${dateISO}</strong>.</p>
+        <p><strong>Importante:</strong> questa è <em>solo</em> una richiesta; la pulizia verrà programmata
+        esclusivamente dopo una <strong>conferma scritta da MUSE.holiday</strong>.</p>
+        <p style="color:#b00020"><strong>Nota:</strong> la pulizia <u>NON</u> include biancheria/lavanderia;
+        la fornitura o il ritiro della biancheria va ordinata separatamente nel carrello.</p>
+      `;
+      try {
         await transporter.sendMail({
           from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
           to:   email,
@@ -238,12 +227,15 @@ app.post('/cleaning-quote', async (req, res) => {
           html: clientHtml
         });
       } catch (e) {
-        console.error('Background email error (/cleaning-quote):', e);
+        console.error('Background email error (client /cleaning-quote):', e);
       }
     });
+
+    // Allow testing without relying on email:
+    const includeLink = EXPOSE_DECISION_URL || String(req.query.debug || '').toLowerCase() === '1';
+    res.json(includeLink ? { success: true, decisionURL } : { success: true });
   } catch (err) {
     console.error('Error /cleaning-quote:', err);
-    // Even on error here, return a generic failure
     res.status(500).json({ success: false, error: 'Errore interno' });
   }
 });
@@ -314,9 +306,10 @@ app.post('/quote/decision', async (req, res) => {
         <p>Ciao ${data.name}, la tua richiesta per la pulizia dell'appartamento <strong>${data.apartmentId}</strong>
         in data <strong>${data.dateISO}</strong> è stata <strong>ACCETTATA</strong>.</p>
         <p><strong>Prezzo:</strong> €${price.toFixed(2)} (IVA esclusa, salvo diverse indicazioni)</p>
+        <p style="color:#b00020"><strong>Nota:</strong> la pulizia <u>NON</u> include biancheria/lavanderia; la fornitura o il ritiro
+        della biancheria va ordinata separatamente nel carrello.</p>
         <p>Questa email costituisce <strong>conferma scritta</strong> della prenotazione.</p>
       `;
-      // background send not strictly necessary here, but fast enough:
       await transporter.sendMail({
         from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
         to:   data.email,
@@ -329,6 +322,7 @@ app.post('/quote/decision', async (req, res) => {
         <p>Ciao ${data.name}, la tua richiesta per la pulizia dell'appartamento <strong>${data.apartmentId}</strong>
         in data <strong>${data.dateISO}</strong> è stata <strong>RIFIUTATA</strong>.</p>
         <p><em>Nota:</em> l’invio della richiesta non implica conferma del servizio.</p>
+        <p style="color:#b00020"><strong>Nota:</strong> la pulizia <u>NON</u> include biancheria/lavanderia.</p>
         <p>Se vuoi, invia una nuova richiesta con un'altra data.</p>
       `;
       await transporter.sendMail({
@@ -340,18 +334,12 @@ app.post('/quote/decision', async (req, res) => {
     }
 
     // Notify owner (thread)
-    setImmediate(async () => {
-      try {
-        await transporter.sendMail({
-          from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
-          to:   process.env.SHOP_EMAIL,
-          subject: `Decisione inviata — ${String(action).toUpperCase()} — ${data.apartmentId} (${data.dateISO})`,
-          html: `<p>Decisione: <strong>${action}</strong> ${price ? `— Prezzo €${price.toFixed(2)}` : ''}<br/>
-                 Cliente: ${data.name} &lt;${data.email}&gt;</p>`
-        });
-      } catch (e) {
-        console.error('Background email error (/quote/decision notify):', e);
-      }
+    await transporter.sendMail({
+      from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
+      to:   process.env.SHOP_EMAIL,
+      subject: `Decisione inviata — ${String(action).toUpperCase()} — ${data.apartmentId} (${data.dateISO})`,
+      html: `<p>Decisione: <strong>${action}</strong> ${price ? `— Prezzo €${price.toFixed(2)}` : ''}<br/>
+             Cliente: ${data.name} &lt;${data.email}&gt;</p>`
     });
 
     res.send('Decisione inviata con successo. Puoi chiudere questa pagina.');
