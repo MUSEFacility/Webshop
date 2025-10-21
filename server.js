@@ -347,6 +347,138 @@ app.post('/quote/decision', async (req, res) => {
     res.status(400).send('Errore nella decisione.');
   }
 });
+/* ───────────────────── EMAIL PREVIEWS (DEV/QA ONLY) ─────────────────────
+   Enable by setting: ENABLE_EMAIL_PREVIEWS=true
+   Then open the URLs below to see the exact HTML that would be emailed.
+*/
+function previewsEnabled(res) {
+  if (process.env.ENABLE_EMAIL_PREVIEWS === 'true') return true;
+  res.status(404).send('Email previews disabled');
+  return false;
+}
+
+// Helper to render the ORDER email body (same structure you send now)
+function renderOrderEmail({ name, email, region, cart }) {
+  let total = 0;
+  let summaryHtml = `
+    <h2>Nuovo ordine da ${name}</h2>
+    <p><strong>Regione:</strong> ${region}</p>
+    <p><em>Prezzi sempre mostrati IVA esclusa.</em></p>
+    <ul>`;
+  cart.forEach(item => {
+    const price = Number(item.price) || 0;
+    total += item.qty * price;
+    summaryHtml += `<li>${item.title} × ${item.qty} @ €${price.toFixed(2)}</li>`;
+  });
+  summaryHtml += `
+    </ul>
+    <p><strong>Totale: €${total.toFixed(2)}</strong></p>
+    <p><em>Pagamento: nessuno richiesto ora – verrà fatturato.</em></p>
+    <hr/>
+    <p><strong>Nome cliente:</strong> ${name}</p>
+    <p><strong>Email cliente:</strong> ${email}</p>`;
+  return summaryHtml;
+}
+
+// ORDER email preview (owner + buyer share same body in your code)
+app.get('/debug/preview/order', (req, res) => {
+  if (!previewsEnabled(res)) return;
+
+  const name   = req.query.name   || 'Mario Rossi';
+  const email  = req.query.email  || 'mario.rossi@example.com';
+  const region = req.query.region || 'Val Gardena';
+
+  // You can pass a cart JSON as base64url in ?cart_b64=… (optional)
+  let cart = [
+    { title: 'ASCIUGAMANO BAGNO 100x150', qty: 2, price: 9.77 },
+    { title: 'LENZUOLO 2P 240x300', qty: 1, price: 23.53 }
+  ];
+  if (req.query.cart_b64) {
+    try {
+      cart = JSON.parse(Buffer.from(req.query.cart_b64, 'base64url').toString());
+    } catch (_) {}
+  }
+
+  const html = renderOrderEmail({ name, email, region, cart });
+  res.set('Content-Type','text/html; charset=utf-8').send(html);
+});
+
+// CLEANING: owner email preview (includes decision link)
+app.get('/debug/preview/cleaning-owner', (req, res) => {
+  if (!previewsEnabled(res)) return;
+
+  const name   = req.query.name   || 'Mario Rossi';
+  const email  = req.query.email  || 'mario.rossi@example.com';
+  const apt    = req.query.apt    || '1234A';
+  const date   = req.query.date   || '2025-11-05';
+  const link   = req.query.link   || `${(process.env.APP_BASE_URL || 'https://musevision.it')}/quote/decision?token=TEST_TOKEN`;
+
+  const html = `
+    <h2>Nuova richiesta preventivo pulizia (Val Gardena)</h2>
+    <p><strong>Cliente:</strong> ${name} &lt;${email}&gt;</p>
+    <p><strong>Appartamento:</strong> ${apt}</p>
+    <p><strong>Data richiesta pulizia:</strong> ${date}</p>
+    <p>Apri per <strong>Accettare</strong> o <strong>Rifiutare</strong> e inserire il prezzo:</p>
+    <p><a href="${link}">${link}</a></p>
+  `;
+  res.set('Content-Type','text/html; charset=utf-8').send(html);
+});
+
+// CLEANING: client acknowledgement preview (request ≠ confirmation)
+app.get('/debug/preview/cleaning-client', (req, res) => {
+  if (!previewsEnabled(res)) return;
+
+  const name = req.query.name || 'Mario Rossi';
+  const apt  = req.query.apt  || '1234A';
+  const date = req.query.date || '2025-11-05';
+
+  const html = `
+    <h2>Richiesta preventivo inviata</h2>
+    <p>Grazie ${name}, abbiamo ricevuto la tua richiesta per la pulizia dell'appartamento
+    <strong>${apt}</strong> il giorno <strong>${date}</strong>.</p>
+    <p><strong>Importante:</strong> questa è <em>solo</em> una richiesta; la pulizia verrà programmata
+    esclusivamente dopo una <strong>conferma scritta da MUSE.holiday</strong>.</p>
+    <p>Riceverai una risposta con accettazione o rifiuto (ed eventuale prezzo) appena possibile.</p>
+  `;
+  res.set('Content-Type','text/html; charset=utf-8').send(html);
+});
+
+// CLEANING: acceptance email preview
+app.get('/debug/preview/decision-accept', (req, res) => {
+  if (!previewsEnabled(res)) return;
+
+  const name  = req.query.name  || 'Mario Rossi';
+  const apt   = req.query.apt   || '1234A';
+  const date  = req.query.date  || '2025-11-05';
+  const price = Number(req.query.price || '80');
+
+  const html = `
+    <h2>Preventivo accettato</h2>
+    <p>Ciao ${name}, la tua richiesta per la pulizia dell'appartamento <strong>${apt}</strong>
+    in data <strong>${date}</strong> è stata <strong>ACCETTATA</strong>.</p>
+    <p><strong>Prezzo:</strong> €${price.toFixed(2)} (IVA esclusa, salvo diverse indicazioni)</p>
+    <p>Questa email costituisce <strong>conferma scritta</strong> della prenotazione.</p>
+  `;
+  res.set('Content-Type','text/html; charset=utf-8').send(html);
+});
+
+// CLEANING: denial email preview
+app.get('/debug/preview/decision-deny', (req, res) => {
+  if (!previewsEnabled(res)) return;
+
+  const name = req.query.name || 'Mario Rossi';
+  const apt  = req.query.apt  || '1234A';
+  const date = req.query.date || '2025-11-05';
+
+  const html = `
+    <h2>Preventivo rifiutato</h2>
+    <p>Ciao ${name}, la tua richiesta per la pulizia dell'appartamento <strong>${apt}</strong>
+    in data <strong>${date}</strong> è stata <strong>RIFIUTATA</strong>.</p>
+    <p><em>Nota:</em> l’invio della richiesta non implica conferma del servizio.</p>
+    <p>Se vuoi, invia una nuova richiesta con un'altra data.</p>
+  `;
+  res.set('Content-Type','text/html; charset=utf-8').send(html);
+});
 
 /* ─────────────────────────── START SERVER ───────────────────────────── */
 const PORT = process.env.PORT || 3000;
