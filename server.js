@@ -216,7 +216,7 @@ app.post('/cleaning-quote', async (req, res) => {
         <strong>${apartmentId}</strong> il giorno <strong>${dateISO}</strong>.</p>
         <p><strong>Importante:</strong> questa è <em>solo</em> una richiesta; la pulizia verrà programmata
         esclusivamente dopo una <strong>conferma scritta da MUSE.holiday</strong>.</p>
-        <p style="color:#b00020"><strong>Nota:</strong> la pulizia <u>NON</u> include biancheria/lavanderia
+        <p style="color:#b00020"><strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia
         .</p>
       `;
       try {
@@ -306,7 +306,7 @@ app.post('/quote/decision', async (req, res) => {
         <p>Ciao ${data.name}, la tua richiesta per la pulizia dell'appartamento <strong>${data.apartmentId}</strong>
         in data <strong>${data.dateISO}</strong> è stata <strong>ACCETTATA</strong>.</p>
         <p><strong>Prezzo:</strong> €${price.toFixed(2)} (IVA esclusa, salvo diverse indicazioni)</p>
-        <p style="color:#b00020"><strong>Nota:</strong> la pulizia <u>NON</u> include biancheria/lavanderia.</p>
+        <p style="color:#b00020"><strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia.</p>
         <p>Questa email costituisce <strong>conferma scritta</strong> della prenotazione.</p>
       `;
       await transporter.sendMail({
@@ -321,7 +321,7 @@ app.post('/quote/decision', async (req, res) => {
         <p>Ciao ${data.name}, la tua richiesta per la pulizia dell'appartamento <strong>${data.apartmentId}</strong>
         in data <strong>${data.dateISO}</strong> è stata <strong>RIFIUTATA</strong>.</p>
         <p><em>Nota:</em> l’invio della richiesta non implica conferma del servizio.</p>
-        <p style="color:#b00020"><strong>Nota:</strong> la pulizia <u>NON</u> include biancheria/lavanderia.</p>
+        <p style="color:#b00020"><strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia.</p>
         <p>Se vuoi, invia una nuova richiesta con un'altra data.</p>
       `;
       await transporter.sendMail({
