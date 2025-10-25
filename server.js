@@ -9,16 +9,22 @@ const crypto     = require('crypto');
 const app = express();
 
 /* ────────────────────────── DOMAIN REDIRECTS ──────────────────────────
-   Redirect www.musevision.it and *.fly.dev → https://musevision.it
-   (Place before other routes) */
+   Allow the Fly domain for testing, still force www → apex, and don’t
+   interfere with ACME TLS validation. Put this BEFORE other routes. */
 app.use((req, res, next) => {
-  const host = (req.hostname || '').toLowerCase();
+  const host = (req.headers['x-forwarded-host'] || req.hostname || '').toLowerCase();
+
+  // Let Fly *.fly.dev work during setup
+  if (host.endsWith('.fly.dev')) return next();
+
+  // Don’t break TLS issuance checks
+  if (req.path.startsWith('/.well-known/acme-challenge')) return next();
+
+  // Keep canonical redirect for your own domain (www → apex)
   if (host === 'www.musevision.it') {
     return res.redirect(301, 'https://musevision.it' + req.originalUrl);
   }
-  if (host.endsWith('.fly.dev')) {
-    return res.redirect(301, 'https://musevision.it' + req.originalUrl);
-  }
+
   next();
 });
 
@@ -216,8 +222,7 @@ app.post('/cleaning-quote', async (req, res) => {
         <strong>${apartmentId}</strong> il giorno <strong>${dateISO}</strong>.</p>
         <p><strong>Importante:</strong> questa è <em>solo</em> una richiesta; la pulizia verrà programmata
         esclusivamente dopo una <strong>conferma scritta da MUSE.holiday</strong>.</p>
-        <p style="color:#b00020"><strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia
-        .</p>
+        <p style="color:#b00020"><strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia.</p>
       `;
       try {
         await transporter.sendMail({
@@ -347,6 +352,7 @@ app.post('/quote/decision', async (req, res) => {
     res.status(400).send('Errore nella decisione.');
   }
 });
+
 /* ───────────────────── EMAIL PREVIEWS (DEV/QA ONLY) ─────────────────────
    Enable by setting: ENABLE_EMAIL_PREVIEWS=true
    Then open the URLs below to see the exact HTML that would be emailed.
