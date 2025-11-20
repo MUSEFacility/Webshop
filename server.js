@@ -126,7 +126,7 @@ app.post('/checkout', async (req, res) => {
       Dolomites:     'info@muse.holiday',
       'South Tyrol': 'suedtirol@muse.holiday',
       Garda:         'garda@muse.holiday',
-      'Val Gardena': 'suedtirol@muse.holiday'
+      'Val Gardena': 'info@muse.holiday'
     };
     const ccAddress = ccByRegion[region] || process.env.SHOP_CC_EMAIL;
 
@@ -207,7 +207,7 @@ app.post('/cleaning-quote', async (req, res) => {
         await transporter.sendMail({
           from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
           to:   process.env.SHOP_EMAIL,
-          cc:   'suedtirol@muse.holiday',
+          cc:   'info@muse.holiday',
           subject: `Richiesta preventivo pulizia — ${name} (${apartmentId})`,
           html: ownerHtml
         });
