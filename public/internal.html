@@ -1,377 +1,588 @@
 <!DOCTYPE html>
 <html lang="it">
-  <head>
-    <meta charset="UTF-8" />
-    <title>MUSE Internal Shop</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-      /* ─── Global & Container ───────────────────────────────── */
-      body {
-        font-family: sans-serif;
-        margin: 0 auto;
-        padding: 1rem;
-        max-width: 800px;
-        box-sizing: border-box;
-      }
-      header { text-align: center; margin-bottom: 1rem; }
-      img { max-width: 120px; display: block; margin: 0 auto 0.5rem; }
+<head>
+  <meta charset="UTF-8" />
+  <title>MUSE Internal Shop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
 
-      /* ─── Forms & Controls ───────────────────────────────── */
-      select, input[type="text"], input[type="email"], input[type="date"], button {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 0.75em;
-        margin: 0.5em 0;
-        font-size: 1rem;
-      }
-      button { cursor: pointer; }
+  <style>
+    :root{
+      --bg0:#070b14;
+      --bg1:#0b1220;
 
-      /* ─── Product & Cart Layout ───────────────────────────── */
-      .product, .cart-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0.5em 0;
-        padding: 0.5em;
-        border-radius: 4px;
-        background: #fafafa;
-      }
-      .product div:first-child, .cart-item span { flex: 1; text-align: left; }
+      --card: rgba(255,255,255,.08);
+      --card-border: rgba(255,255,255,.16);
 
-      /* ─── Quantity Controls (full-width) ─────────────────── */
-      .qty-control {
-        display: flex;
-        width: 100%;
-        max-width: 240px;
-        margin: 0.5em auto;
-        justify-content: space-between;
-        box-sizing: border-box;
-      }
-      .qty-control button, .qty-control input { flex: 1; min-width: 0; margin: 0 0.25em; }
-      .qty-control button { padding: 0.5em; }
-      .qty-control input  { text-align: center; }
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.72);
 
-      /* ─── Cart Section ───────────────────────────────────── */
-      .cart { margin-top: 2em; border-top: 1px solid #ddd; padding-top: 1em; }
+      --field: rgba(255,255,255,.10);
+      --field-border: rgba(255,255,255,.16);
 
-      /* ─── Val Gardena Cleaning Drawer ────────────────────── */
-      .vg-toggle {
-        display: none; /* visible only if region = Val Gardena */
-        border: 1px dashed #ddd; padding: 0.75em 1em; border-radius: 6px;
-        background: #fcfcfc; margin: 1em 0 0.5em;
-      }
-      .vg-toggle label { display: flex; align-items: center; gap: .5em; cursor: pointer; }
-      .vg-box {
-        display: none; /* show when drawer checked */
-        border: 1px solid #eee; padding: 1em; border-radius: 6px; margin: 0.5em 0 1em; background: #fff;
-      }
-      .vg-box h3 { margin-top: 0; }
+      --panel: rgba(255,255,255,.06);
+      --panel-border: rgba(255,255,255,.14);
 
-      /* ─── Toasts ──────────────────────────────────────────── */
-      #toast-container { position: fixed; bottom: 1rem; right: 1rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 9999; }
-      .toast {
-        min-width: 200px; background: #333; color: #fff; padding: 0.75em 1em; border-radius: 4px;
-        opacity: 0; transform: translateY(20px); transition: opacity .3s ease, transform .3s ease;
-        font-size: 0.9rem; box-shadow: 0 2px 6px rgba(0,0,0,.2);
-      }
-      .toast.show { opacity: 1; transform: translateY(0); }
+      --shadow: 0 22px 70px rgba(0,0,0,.48);
+      --radius: 20px;
 
-      /* ─── Responsive Tweaks ──────────────────────────────── */
-      @media (max-width: 600px) {
-        .product, .cart-item { flex-direction: column; align-items: flex-start; }
-        .qty-control { max-width: none; padding: 0 1rem; }
-        .qty-control button, .qty-control input { padding: 0.75em; font-size: 1.1rem; }
-      }
-    </style>
-  </head>
+      --focus: rgba(56,189,248,.60);
+      --ring: 0 0 0 3px var(--focus);
+    }
 
-  <body>
-    <header>
-      <img src="logo.png" alt="MUSE Logo" />
-      <h1>MUSE Internal Shop</h1>
-      <p><em>Prezzi sempre mostrati IVA esclusa.</em></p>
-    </header>
+    *{ box-sizing: border-box; }
+    html, body{ height: 100%; }
 
-    <!-- CUSTOMER DETAILS (shared by order & cleaning) -->
-    <h3>Dettagli Cliente</h3>
-    <select id="region" required>
-      <option value="">Seleziona dove ritiri la biancheria…</option>
-      <option value="Val Gardena">Val Gardena</option>
-      <option value="South Tyrol">Caldaro</option>
-      <option value="Garda">Garda</option>
-    </select>
-    <input id="name" type="text" placeholder="Il tuo nome" />
-    <input id="email" type="email" placeholder="La tua email" />
+    body{
+      margin: 0;
+      min-height: 100svh;
+      padding: clamp(18px, 3vw, 28px);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      background:
+        radial-gradient(1200px 600px at 18% 10%, rgba(56,189,248,.22), transparent 60%),
+        radial-gradient(900px 500px at 85% 18%, rgba(167,139,250,.18), transparent 55%),
+        radial-gradient(900px 600px at 42% 92%, rgba(34,197,94,.12), transparent 55%),
+        radial-gradient(900px 600px at 50% 50%, rgba(255,255,255,.04), transparent 60%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+    }
 
-    <!-- CLEANING DRAWER (only for Val Gardena) -->
-    <div id="vg-toggle" class="vg-toggle">
-      <label>
-        <input type="checkbox" id="cleaningDrawer" />
-        Richiedi preventivo per la <strong>pulizia appartamento</strong> (Val Gardena)
-      </label>
-    </div>
+    .shell{ width: min(980px, 100%); margin: 0 auto; }
 
-    <!-- CLEANING QUOTE FORM -->
-    <div id="vg-quote" class="vg-box">
-      <h3>Richiedi Preventivo Pulizia (Val Gardena)</h3>
-      <input id="aptId" type="text" placeholder="ID Appartamento (4–5 caratteri alfanumerici)" maxlength="5" />
-      <input id="cleanDate" type="date" />
-      <button id="sendQuote">Richiedi Preventivo</button>
-      <small style="display:block;margin-top:.5em;color:#555">
-        La richiesta deve essere inviata almeno <strong>72 ore</strong> prima della mezzanotte del giorno scelto.
-      </small>
-      <small style="display:block;margin-top:.25em;color:#555">
-        <strong>Importante:</strong> l’invio della richiesta <em>non</em> è conferma del servizio.
-        La pulizia verrà programmata solo dopo una <strong>conferma scritta da MUSE.holiday</strong>.
-      </small>
-      <small style="display:block;margin-top:.25em;color:#b00020">
-        <strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia.
-      </small>
-    </div>
+    .card{
+      border-radius: var(--radius);
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--shadow);
+      padding: clamp(20px, 3vw, 32px);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
 
-    <!-- PRODUCTS LIST (always visible) -->
-    <div id="products"></div>
+    header{
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
 
-    <!-- CART + CHECKOUT (no name/email here anymore) -->
-    <div class="cart">
-      <h2>Carrello</h2>
-      <div id="cart-items"></div>
-      <p><strong>Totale: €<span id="total">0.00</span></strong></p>
-      <p><small>Prezzi sempre mostrati IVA esclusa.</small></p>
-      <button id="checkout" disabled>Invia Ordine</button>
-      <small style="display:block;margin-top:.25em;color:#555">
-        Per la <strong>pulizia</strong> usa il pulsante “Richiedi Preventivo” sopra; non è necessario aggiungere prodotti.
-      </small>
-    </div>
+    .logo-img{
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      object-fit: contain;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.14);
+      padding: 6px;
+      box-shadow: 0 12px 34px rgba(0,0,0,.30);
+      flex: 0 0 auto;
+    }
 
-    <!-- Toast container -->
-    <div id="toast-container"></div>
+    h1{
+      margin: 0;
+      font-size: clamp(20px, 2.4vw, 28px);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
 
-    <script>
-      /* ---------------------------- Catalogs ---------------------------- */
-      const PRODUCTS_BY_REGION = {
-        "Val Gardena": [
-          { id: 1,  title: "ASCIUGAMANO BAGNO 100x150",        description: "6 per Pacco",  price:  9.77 },
-          { id: 2,  title: "LENZUOLO C.ANG 2P DELUXE 200x210", description: "5 per Pacco",  price: 17.53 },
-          { id: 3,  title: "LENZUOLO C.ANG 1P DELUXE 100x210", description: "5 per Pacco",  price: 13.74 },
-          { id: 4,  title: "LENZUOLO 2P 240x300",              description: "10 per Pacco", price: 23.53 },
-          { id: 5,  title: "LENZUOLO 1P 160x300",              description: "10 per Pacco", price: 15.81 },
-          { id: 6,  title: "FEDERA GRANDE 60x80",              description: "25 per Pacco", price: 24.44 },
-          { id: 7,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
-          { id: 8,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
-          { id: 9,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
-          { id: 10, title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
-          { id: 11, title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
-          { id: 12, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
-          { id: 13, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
-        ],
-        "South Tyrol": [
-          { id: 1,  title: "ASCIUGAMANO BAGNO 100x150",        description: "6 per Pacco",  price:  9.77 },
-          { id: 2,  title: "LENZUOLO 2P 240x300",              description: "10 per Pacco", price: 23.53 },
-          { id: 3,  title: "LENZUOLO 1P 160x300",              description: "10 per Pacco", price: 15.81 },
-          { id: 4,  title: "FEDERA GRANDE 60x80",              description: "25 per Pacco", price: 24.44 },
-          { id: 5,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
-          { id: 6,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
-          { id: 7,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
-          { id: 8,  title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
-          { id: 9,  title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
-          { id: 10, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
-          { id: 11, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
-        ],
-        Garda: [
-          { id: 1,  title: "ASCIUGAMANO BAGNO 100x150",        description: "6 per Pacco",  price:  9.77 },
-          { id: 2,  title: "LENZUOLO 2P 240x300",              description: "10 per Pacco", price: 23.53 },
-          { id: 3,  title: "LENZUOLO 1P 160x300",              description: "10 per Pacco", price: 15.81 },
-          { id: 4,  title: "FEDERA GRANDE 60x80",              description: "25 per Pacco", price: 24.44 },
-          { id: 5,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
-          { id: 6,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
-          { id: 7,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
-          { id: 8,  title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
-          { id: 9,  title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
-          { id: 10, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
-          { id: 11, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
-        ]
-      };
+    .sub{
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
 
-      let currentProducts = [];
-      let cart = [];
+    .section-title{
+      margin: 18px 0 10px;
+      font-size: 14px;
+      color: rgba(255,255,255,.82);
+    }
 
-      // Val Gardena elements
-      const vgBox    = document.getElementById('vg-quote');
-      const vgToggle = document.getElementById('vg-toggle');
-      const drawerEl = document.getElementById('cleaningDrawer');
-      const regionEl = document.getElementById('region');
-      const dateEl   = document.getElementById('cleanDate');
-      const nameEl   = document.getElementById('name');
-      const emailEl  = document.getElementById('email');
-      const checkoutBtn = document.getElementById('checkout');
+    label{
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
 
-      function setMinDate72h() {
-        // UI hint only — server enforces exact rule
-        const now  = new Date();
-        const hint = new Date(now.getTime() + 72 * 60 * 60 * 1000 + 24 * 60 * 60 * 1000); // 72h + 1 day
-        const yyyy = hint.getFullYear();
-        const mm   = String(hint.getMonth() + 1).padStart(2, '0');
-        const dd   = String(hint.getDate()).padStart(2, '0');
-        if (dateEl) dateEl.min = `${yyyy}-${mm}-${dd}`;
-      }
+    select,
+    input[type="text"],
+    input[type="email"],
+    input[type="date"],
+    input[type="number"]{
+      width: 100%;
+      padding: 14px;
+      border-radius: 14px;
+      background: var(--field);
+      border: 1px solid var(--field-border);
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+    }
 
-      function updateVGVisibility(){
-        const isVG = regionEl.value === 'Val Gardena';
-        vgToggle.style.display = isVG ? 'block' : 'none';
-        vgBox.style.display    = (isVG && drawerEl.checked) ? 'block' : 'none';
-        if (isVG) setMinDate72h();
-      }
+    select:focus-visible,
+    input:focus-visible{
+      box-shadow: var(--ring);
+      border-color: rgba(56,189,248,.55);
+      background: rgba(255,255,255,.12);
+    }
 
-      drawerEl.addEventListener('change', updateVGVisibility);
+    /* dropdown fix */
+    select{ color-scheme: dark; }
+    select option,
+    select optgroup{
+      background-color: #0b1220;
+      color: rgba(255,255,255,.92);
+    }
+    select option:checked{
+      background-color: rgba(56,189,248,.28);
+      color: rgba(255,255,255,.92);
+    }
 
-      /* -------------------------- Rendering --------------------------- */
-      function renderProducts() {
-        const root = document.getElementById("products");
-        root.innerHTML = "";
-        currentProducts.forEach(p => {
-          const line = cart.find(x => x.id === p.id);
-          const qty  = line ? line.qty : 0;
+    button{
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.10);
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      transition: transform .10s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
 
-          const div = document.createElement("div");
-          div.className = "product";
-          div.innerHTML = `
-            <div>
-              <div><strong>${p.title} — €${p.price.toFixed(2)}</strong></div>
-              <div><small>${p.description}</small></div>
-            </div>
-            <div class="qty-control">
-              <button onclick="removeFromCart(${p.id})">−</button>
-              <input type="number" min="0" value="${qty}" onchange="updateQty(${p.id}, this.value)"/>
-              <button onclick="addToCart(${p.id})">+</button>
-            </div>
-          `;
-          root.append(div);
-        });
-      }
+    button:hover{
+      background: rgba(255,255,255,.16);
+      border-color: rgba(255,255,255,.24);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 30px rgba(0,0,0,.20);
+    }
 
-      function addToCart(id) {
-        const prod = currentProducts.find(x => x.id === id);
-        let line  = cart.find(x => x.id === id);
-        if (!line) { line = {...prod, qty:0}; cart.push(line); }
-        line.qty++;
-        renderCart(); renderProducts();
-      }
-      function removeFromCart(id) {
-        cart = cart.map(x => x.id===id ? {...x,qty:x.qty-1} : x).filter(x => x.qty>0);
-        renderCart(); renderProducts();
-      }
-      function updateQty(id, value) {
-        const q = parseInt(value,10) || 0;
-        cart = cart.map(x => x.id===id ? {...x,qty:q} : x).filter(x => x.qty>0);
-        renderCart(); renderProducts();
-      }
+    button:active{ transform: translateY(0px); box-shadow: none; }
 
-      function renderCart() {
-        const root = document.getElementById("cart-items");
-        root.innerHTML = "";
-        let total = 0;
-        cart.forEach(item => {
-          total += item.qty * item.price;
-          const div = document.createElement("div");
-          div.className = "cart-item";
-          div.innerHTML = `
-            <span>${item.title}</span>
-            <div class="qty-control">
-              <button onclick="removeFromCart(${item.id})">−</button>
-              <input type="number" value="${item.qty}" min="0" onchange="updateQty(${item.id}, this.value)"/>
-              <button onclick="addToCart(${item.id})">+</button>
-            </div>
-          `;
-          root.append(div);
-        });
-        document.getElementById("total").textContent = total.toFixed(2);
-        checkoutBtn.disabled = cart.length === 0; // enable order only if there are items
-      }
+    button:focus-visible{
+      outline: none;
+      box-shadow: var(--ring), 0 18px 55px rgba(0,0,0,.35);
+      border-color: rgba(56,189,248,.55);
+    }
 
-      function showToast(msg,duration=3000){
-        const c = document.getElementById("toast-container");
-        const t = document.createElement("div");
-        t.className = "toast"; t.textContent = msg; c.append(t);
-        requestAnimationFrame(()=>t.classList.add("show"));
-        setTimeout(()=>{ t.classList.remove("show"); t.addEventListener("transitionend",()=>t.remove(),{once:true}); },duration);
-      }
+    button:disabled{
+      opacity: .55;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
 
-      /* ---------------------------- Events ---------------------------- */
-      regionEl.onchange = function(){
-        cart = []; renderCart();
-        currentProducts = PRODUCTS_BY_REGION[this.value] || [];
-        renderProducts(); updateVGVisibility();
-      };
+    .row{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
 
-      // ORDER (laundry) — needs region, name, email + at least one product
-      let isSubmitting = false;
-      checkoutBtn.onclick = async ()=>{
-        if(isSubmitting) return;
-        isSubmitting = true; checkoutBtn.disabled = true; checkoutBtn.textContent = "Invio in corso…";
+    @media (min-width: 780px){
+      .row.cols-2{ grid-template-columns: 1fr 1fr; }
+      .row.cols-3{ grid-template-columns: 1.2fr 1fr 1fr; }
+    }
 
-        const region = regionEl.value;
-        const name   = nameEl.value.trim();
-        const email  = emailEl.value.trim();
+    .product,
+    .cart-item{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 16px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      margin-bottom: 10px;
+    }
 
-        if(!region || !name || !email || cart.length===0){
-          showToast("Per inviare un ORDINE: scegli regione, inserisci nome ed email e aggiungi almeno un prodotto.");
-          checkoutBtn.disabled = cart.length === 0 ? true : false;
-          checkoutBtn.textContent = "Invia Ordine"; isSubmitting = false; return;
-        }
+    .product small{ display: block; color: rgba(255,255,255,.70); margin-top: 4px; }
 
-        try {
-          const res = await fetch("/checkout", {
-            method:"POST",
-            headers:{"Content-Type":"application/x-www-form-urlencoded"},
-            body: new URLSearchParams({ region, name, email, cartJson: JSON.stringify(cart) })
-          });
-          const { success } = await res.json();
-          if(success) showToast("Ordine inviato! Controlla la tua email.");
-          else showToast("Errore—riprovare.");
-        } catch { showToast("Errore di rete—riprovare."); }
+    .qty-control{
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      width: 100%;
+      max-width: 240px;
+      justify-content: flex-end;
+    }
 
-        checkoutBtn.textContent = "Invia Ordine";
-        checkoutBtn.disabled = cart.length === 0;
-        isSubmitting = false;
-      };
+    .qty-control button{
+      width: auto;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.16);
+      font-size: 18px;
+      font-weight: 600;
+    }
 
-      // CLEANING QUOTE (Val Gardena) — uses name/email above; no cart needed
-      document.getElementById('sendQuote').addEventListener('click', async () => {
-        const region = regionEl.value;
-        const name   = nameEl.value.trim();
-        const email  = emailEl.value.trim();
-        const apartmentId = document.getElementById('aptId').value.trim();
-        const dateISO     = document.getElementById('cleanDate').value;
+    .qty-control input{
+      width: 68px;
+      text-align: center;
+      padding: 10px 10px;
+      background: rgba(255,255,255,.08);
+    }
 
-        if (region !== 'Val Gardena') return showToast('Disponibile solo per Val Gardena.');
-        if (!/^[A-Za-z0-9]{4,5}$/.test(apartmentId)) return showToast('ID appartamento non valido (4–5 caratteri).');
-        if (!dateISO) return showToast('Seleziona una data.');
-        if (!name || !email) return showToast('Inserisci nome ed email (usati per la conferma).');
+    .cart{
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,.12);
+    }
 
-        try {
-          const res = await fetch('/cleaning-quote', {
-            method: 'POST',
-            headers: { 'Content-Type':'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ region, name, email, apartmentId, dateISO })
-          });
-          const data = await res.json();
-          if (data.success) {
-            showToast('Richiesta inviata! Riceverai conferma via email (richiesta ≠ conferma).');
-            if (data.decisionURL) {
-              console.log('Decision URL (test):', data.decisionURL);
-            }
-            document.getElementById('aptId').value = '';
-            document.getElementById('cleanDate').value = '';
-            drawerEl.checked = false; updateVGVisibility();
-          } else {
-            showToast(data.error || 'Errore nella richiesta.');
-          }
-        } catch { showToast('Errore di rete, riprova.'); }
+    .hint{
+      color: rgba(255,255,255,.66);
+      font-size: 12px;
+      line-height: 1.45;
+      margin-top: 8px;
+    }
+
+    .vg-toggle,
+    .vg-box{
+      border-radius: 16px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.14);
+      padding: 12px;
+    }
+
+    .vg-toggle{ display: none; margin-top: 10px; }
+    .vg-toggle label{ display:flex; align-items:center; gap:10px; cursor:pointer; margin: 0; }
+
+    .vg-box{ display: none; margin: 10px 0 14px; }
+    .vg-box h3{ margin: 0 0 10px; font-size: 14px; }
+
+    #toast-container{
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      z-index: 9999;
+    }
+
+    .toast{
+      background: rgba(20,20,24,.92);
+      padding: 0.75em 1em;
+      border-radius: 14px;
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity .3s ease, transform .3s ease;
+      font-size: 0.9rem;
+      border: 1px solid rgba(255,255,255,.12);
+    }
+
+    .toast.show{ opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 560px){
+      .product, .cart-item{ flex-direction: column; align-items: flex-start; }
+      .qty-control{ max-width: none; justify-content: flex-start; }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="shell">
+    <section class="card">
+      <header>
+        <img src="logo.png" alt="MUSE Logo" class="logo-img" />
+        <div>
+          <h1>MUSE Internal Shop</h1>
+          <div class="sub">Prezzi sempre mostrati IVA esclusa.</div>
+        </div>
+      </header>
+
+      <div class="section-title">Dettagli Cliente</div>
+
+      <div class="row cols-3">
+        <div>
+          <label for="region">Dove ritiri la biancheria</label>
+          <select id="region" required>
+            <option value="">Seleziona dove ritiri la biancheria…</option>
+            <option value="Val Gardena">Val Gardena</option>
+            <option value="South Tyrol">Caldaro</option>
+            <option value="Garda">Garda</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="name">Nome</label>
+          <input id="name" type="text" placeholder="Il tuo nome" />
+        </div>
+
+        <div>
+          <label for="email">Email</label>
+          <input id="email" type="email" placeholder="La tua email" />
+        </div>
+      </div>
+
+      <div id="vg-toggle" class="vg-toggle">
+        <label>
+          <input type="checkbox" id="cleaningDrawer" />
+          Richiedi preventivo per la pulizia appartamento (Val Gardena)
+        </label>
+      </div>
+
+      <div id="vg-quote" class="vg-box">
+        <h3>Richiedi Preventivo Pulizia (Val Gardena)</h3>
+        <div class="row cols-2">
+          <input id="aptId" type="text" placeholder="ID Appartamento (4–5 caratteri alfanumerici)" maxlength="5" />
+          <input id="cleanDate" type="date" />
+        </div>
+        <button id="sendQuote">Richiedi Preventivo</button>
+        <div class="hint">
+          La richiesta deve essere inviata almeno 72 ore prima della mezzanotte del giorno scelto.<br/>
+          Importante: l’invio della richiesta non è conferma del servizio. La pulizia verrà programmata solo dopo una conferma scritta da MUSE.holiday.<br/>
+          Nota: Il prezzo della pulizia NON include biancheria/lavanderia.
+        </div>
+      </div>
+
+      <div class="section-title">Prodotti</div>
+      <div id="products"></div>
+
+      <div class="cart">
+        <div class="section-title">Carrello</div>
+        <div id="cart-items"></div>
+        <div class="sub">Totale: €<span id="total">0.00</span></div>
+        <div class="hint">Per la pulizia usa “Richiedi Preventivo” sopra; non è necessario aggiungere prodotti.</div>
+        <button id="checkout" disabled>Invia Ordine</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast-container"></div>
+
+  <script>
+    /* ---------------------------- Catalogs ---------------------------- */
+    const PRODUCTS_BY_REGION = {
+      "Val Gardena": [
+        { id: 1,  title: "ASCIUGAMANO BAGNO 100x150",        description: "6 per Pacco",  price:  9.77 },
+        { id: 2,  title: "LENZUOLO C.ANG 2P DELUXE 200x210", description: "5 per Pacco",  price: 17.53 },
+        { id: 3,  title: "LENZUOLO C.ANG 1P DELUXE 100x210", description: "5 per Pacco",  price: 13.74 },
+        { id: 4,  title: "LENZUOLO 2P 240x300",              description: "10 per Pacco", price: 23.53 },
+        { id: 5,  title: "LENZUOLO 1P 160x300",              description: "10 per Pacco", price: 15.81 },
+        { id: 6,  title: "FEDERA GRANDE 60x80",              description: "25 per Pacco", price: 24.44 },
+        { id: 7,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
+        { id: 8,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
+        { id: 9,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
+        { id: 10, title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
+        { id: 11, title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
+        { id: 12, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
+        { id: 13, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
+      ],
+      "South Tyrol": [
+        { id: 1,  title: "ASCIUGAMANO BAGNO 100x150",        description: "6 per Pacco",  price:  9.77 },
+        { id: 2,  title: "LENZUOLO 2P 240x300",              description: "10 per Pacco", price: 23.53 },
+        { id: 3,  title: "LENZUOLO 1P 160x300",              description: "10 per Pacco", price: 15.81 },
+        { id: 4,  title: "FEDERA GRANDE 60x80",              description: "25 per Pacco", price: 24.44 },
+        { id: 5,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
+        { id: 6,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
+        { id: 7,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
+        { id: 8,  title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
+        { id: 9,  title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
+        { id: 10, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
+        { id: 11, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
+      ],
+      Garda: [
+        { id: 1,  title: "ASCIUGAMANO BAGNO 100x150",        description: "6 per Pacco",  price:  9.77 },
+        { id: 2,  title: "LENZUOLO 2P 240x300",              description: "10 per Pacco", price: 23.53 },
+        { id: 3,  title: "LENZUOLO 1P 160x300",              description: "10 per Pacco", price: 15.81 },
+        { id: 4,  title: "FEDERA GRANDE 60x80",              description: "25 per Pacco", price: 24.44 },
+        { id: 5,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
+        { id: 6,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
+        { id: 7,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
+        { id: 8,  title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
+        { id: 9,  title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
+        { id: 10, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
+        { id: 11, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
+      ]
+    };
+
+    let currentProducts = [];
+    let cart = [];
+
+    // Val Gardena elements
+    const vgBox    = document.getElementById('vg-quote');
+    const vgToggle = document.getElementById('vg-toggle');
+    const drawerEl = document.getElementById('cleaningDrawer');
+    const regionEl = document.getElementById('region');
+    const dateEl   = document.getElementById('cleanDate');
+    const nameEl   = document.getElementById('name');
+    const emailEl  = document.getElementById('email');
+    const checkoutBtn = document.getElementById('checkout');
+
+    function setMinDate72h() {
+      // UI hint only — server enforces exact rule
+      const now  = new Date();
+      const hint = new Date(now.getTime() + 72 * 60 * 60 * 1000 + 24 * 60 * 60 * 1000); // 72h + 1 day
+      const yyyy = hint.getFullYear();
+      const mm   = String(hint.getMonth() + 1).padStart(2, '0');
+      const dd   = String(hint.getDate()).padStart(2, '0');
+      if (dateEl) dateEl.min = `${yyyy}-${mm}-${dd}`;
+    }
+
+    function updateVGVisibility(){
+      const isVG = regionEl.value === 'Val Gardena';
+      vgToggle.style.display = isVG ? 'block' : 'none';
+      vgBox.style.display    = (isVG && drawerEl.checked) ? 'block' : 'none';
+      if (isVG) setMinDate72h();
+    }
+
+    drawerEl.addEventListener('change', updateVGVisibility);
+
+    /* -------------------------- Rendering --------------------------- */
+    function renderProducts() {
+      const root = document.getElementById("products");
+      root.innerHTML = "";
+      currentProducts.forEach(p => {
+        const line = cart.find(x => x.id === p.id);
+        const qty  = line ? line.qty : 0;
+
+        const div = document.createElement("div");
+        div.className = "product";
+        div.innerHTML = `
+          <div>
+            <div><strong>${p.title} — €${p.price.toFixed(2)}</strong></div>
+            <div><small>${p.description}</small></div>
+          </div>
+          <div class="qty-control">
+            <button onclick="removeFromCart(${p.id})">−</button>
+            <input type="number" min="0" value="${qty}" onchange="updateQty(${p.id}, this.value)"/>
+            <button onclick="addToCart(${p.id})">+</button>
+          </div>
+        `;
+        root.append(div);
       });
+    }
 
-      // initial render
-      renderCart();
-    </script>
-  </body>
+    function addToCart(id) {
+      const prod = currentProducts.find(x => x.id === id);
+      let line  = cart.find(x => x.id === id);
+      if (!line) { line = {...prod, qty:0}; cart.push(line); }
+      line.qty++;
+      renderCart(); renderProducts();
+    }
+    function removeFromCart(id) {
+      cart = cart.map(x => x.id===id ? {...x,qty:x.qty-1} : x).filter(x => x.qty>0);
+      renderCart(); renderProducts();
+    }
+    function updateQty(id, value) {
+      const q = parseInt(value,10) || 0;
+      cart = cart.map(x => x.id===id ? {...x,qty:q} : x).filter(x => x.qty>0);
+      renderCart(); renderProducts();
+    }
+
+    function renderCart() {
+      const root = document.getElementById("cart-items");
+      root.innerHTML = "";
+      let total = 0;
+      cart.forEach(item => {
+        total += item.qty * item.price;
+        const div = document.createElement("div");
+        div.className = "cart-item";
+        div.innerHTML = `
+          <span>${item.title}</span>
+          <div class="qty-control">
+            <button onclick="removeFromCart(${item.id})">−</button>
+            <input type="number" value="${item.qty}" min="0" onchange="updateQty(${item.id}, this.value)"/>
+            <button onclick="addToCart(${item.id})">+</button>
+          </div>
+        `;
+        root.append(div);
+      });
+      document.getElementById("total").textContent = total.toFixed(2);
+      checkoutBtn.disabled = cart.length === 0; // enable order only if there are items
+    }
+
+    function showToast(msg,duration=3000){
+      const c = document.getElementById("toast-container");
+      const t = document.createElement("div");
+      t.className = "toast"; t.textContent = msg; c.append(t);
+      requestAnimationFrame(()=>t.classList.add("show"));
+      setTimeout(()=>{ t.classList.remove("show"); t.addEventListener("transitionend",()=>t.remove(),{once:true}); },duration);
+    }
+
+    /* ---------------------------- Events ---------------------------- */
+    regionEl.onchange = function(){
+      cart = []; renderCart();
+      currentProducts = PRODUCTS_BY_REGION[this.value] || [];
+      renderProducts(); updateVGVisibility();
+    };
+
+    // ORDER (laundry) — needs region, name, email + at least one product
+    let isSubmitting = false;
+    checkoutBtn.onclick = async ()=>{
+      if(isSubmitting) return;
+      isSubmitting = true; checkoutBtn.disabled = true; checkoutBtn.textContent = "Invio in corso…";
+
+      const region = regionEl.value;
+      const name   = nameEl.value.trim();
+      const email  = emailEl.value.trim();
+
+      if(!region || !name || !email || cart.length===0){
+        showToast("Per inviare un ORDINE: scegli regione, inserisci nome ed email e aggiungi almeno un prodotto.");
+        checkoutBtn.disabled = cart.length === 0 ? true : false;
+        checkoutBtn.textContent = "Invia Ordine"; isSubmitting = false; return;
+      }
+
+      try {
+        const res = await fetch("/checkout", {
+          method:"POST",
+          headers:{"Content-Type":"application/x-www-form-urlencoded"},
+          body: new URLSearchParams({ region, name, email, cartJson: JSON.stringify(cart) })
+        });
+        const { success } = await res.json();
+        if(success) showToast("Ordine inviato! Controlla la tua email.");
+        else showToast("Errore—riprovare.");
+      } catch { showToast("Errore di rete—riprovare."); }
+
+      checkoutBtn.textContent = "Invia Ordine";
+      checkoutBtn.disabled = cart.length === 0;
+      isSubmitting = false;
+    };
+
+    // CLEANING QUOTE (Val Gardena) — uses name/email above; no cart needed
+    document.getElementById('sendQuote').addEventListener('click', async () => {
+      const region = regionEl.value;
+      const name   = nameEl.value.trim();
+      const email  = emailEl.value.trim();
+      const apartmentId = document.getElementById('aptId').value.trim();
+      const dateISO     = document.getElementById('cleanDate').value;
+
+      if (region !== 'Val Gardena') return showToast('Disponibile solo per Val Gardena.');
+      if (!/^[A-Za-z0-9]{4,5}$/.test(apartmentId)) return showToast('ID appartamento non valido (4–5 caratteri).');
+      if (!dateISO) return showToast('Seleziona una data.');
+      if (!name || !email) return showToast('Inserisci nome ed email (usati per la conferma).');
+
+      try {
+        const res = await fetch('/cleaning-quote', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ region, name, email, apartmentId, dateISO })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Richiesta inviata! Riceverai conferma via email (richiesta ≠ conferma).');
+          if (data.decisionURL) {
+            console.log('Decision URL (test):', data.decisionURL);
+          }
+          document.getElementById('aptId').value = '';
+          document.getElementById('cleanDate').value = '';
+          drawerEl.checked = false; updateVGVisibility();
+        } else {
+          showToast(data.error || 'Errore nella richiesta.');
+        }
+      } catch { showToast('Errore di rete, riprova.'); }
+    });
+
+    // initial render
+    renderCart();
+  </script>
+</body>
 </html>

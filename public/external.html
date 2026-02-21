@@ -1,380 +1,517 @@
 <!DOCTYPE html>
 <html lang="it">
-  <head>
-    <meta charset="UTF-8" />
-    <title>MUSE EXTERNAL Shop</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-      /* ─── BASE ─────────────────────────────────────────────────────── */
-      body {
-        font-family: sans-serif;
-        width: 100%;
-        max-width: 600px;
-        margin: auto;
-        padding: 1em;
-        box-sizing: border-box;
-      }
-      header {
-        text-align: center;
-        margin-bottom: 1em;
-      }
-      img {
-        max-width: 120px;
-        display: block;
-        margin: 0 auto 0.5em;
-      }
+<head>
+  <meta charset="UTF-8" />
+  <title>MUSE External Shop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
 
-      /* ─── REGION SELECTOR ──────────────────────────────────────────── */
-      select {
-        width: 100%;
-        padding: 0.5em;
-        margin: 0.5em 0 1em;
-        box-sizing: border-box;
-        font-size: 1rem;
-      }
+  <style>
+    :root{
+      --bg0:#070b14;
+      --bg1:#0b1220;
 
-      /* ─── PRODUCTS & CART ITEMS ────────────────────────────────────── */
-      .product,
-      .cart-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0.5em 0;
-      }
-      .product div:first-child,
-      .cart-item span {
-        flex: 1;
-      }
-      .product small {
-        display: block;
-        margin-top: 0.25em;
-      }
+      --card: rgba(255,255,255,.08);
+      --card-border: rgba(255,255,255,.16);
 
-      /* ─── QUANTITY CONTROLS (FULL-WIDTH) ───────────────────────────── */
-      .qty-control {
-        display: flex;
-        width: 100%;
-        max-width: 200px;
-        margin: 0.5em auto;
-        justify-content: space-between;
-        box-sizing: border-box;
-      }
-      .qty-control button,
-      .qty-control input {
-        flex: 1;
-        min-width: 0;
-        margin: 0 0.25em;
-      }
-      .qty-control button {
-        padding: 0.5em;
-        font-size: 1.2rem;
-      }
-      .qty-control input {
-        text-align: center;
-      }
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.72);
 
-      /* ─── CART & CHECKOUT ──────────────────────────────────────────── */
-      .cart {
-        margin-top: 2em;
-        border-top: 1px solid #ddd;
-        padding-top: 1em;
-      }
-      .cart h2 {
-        margin-bottom: 0.5em;
-      }
-      #total {
-        font-size: 1.2rem;
-      }
-      input[type="text"],
-      input[type="email"] {
-        width: 100%;
-        padding: 0.5em;
-        margin: 0.5em 0;
-        box-sizing: border-box;
-        font-size: 1rem;
-      }
-      button#checkout {
-        width: 100%;
-        padding: 0.75em;
-        font-size: 1.1rem;
-        cursor: pointer;
-        margin-top: 0.5em;
-      }
+      --field: rgba(255,255,255,.10);
+      --field-border: rgba(255,255,255,.16);
 
-      /* ─── TOASTS ───────────────────────────────────────────────────── */
-      #toast-container {
-        position: fixed;
-        bottom: 1rem;
-        right: 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        z-index: 9999;
-      }
-      .toast {
-        min-width: 200px;
-        background: #333;
-        color: #fff;
-        padding: 0.75em 1em;
-        border-radius: 4px;
-        opacity: 0;
-        transform: translateY(20px);
-        transition: opacity 0.3s ease, transform 0.3s ease;
-        font-size: 0.9rem;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-      }
-      .toast.show {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      --panel: rgba(255,255,255,.06);
+      --panel-border: rgba(255,255,255,.14);
 
-      /* ─── MOBILE ADJUSTMENTS ───────────────────────────────────────── */
-      @media (max-width: 480px) {
-        body {
-          padding: 0.5em;
-        }
-        .product, .cart-item {
-          flex-direction: column;
-          align-items: flex-start;
-        }
-        .qty-control {
-          max-width: none;
-          padding: 0 1rem;
-        }
-        .qty-control button,
-        .qty-control input {
-          padding: 0.75em;
-          font-size: 1.1rem;
-        }
-        button#checkout {
-          font-size: 1rem;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <header>
-      <img src="logo.png" alt="MUSE Logo" />
-      <h1>MUSE EXTERNAL USER Shop</h1>
-      <p><em>Prezzi sempre mostrati IVA esclusa.</em></p>
-    </header>
+      --shadow: 0 22px 70px rgba(0,0,0,.48);
+      --radius: 20px;
 
-    <!-- REGION SELECTOR -->
-    <h3>Dettagli Cliente</h3>
-    <select id="region" required>
-      <option value="">Seleziona Regione…</option>
-      <option value="Dolomites">Dolomites</option>
-      <option value="South Tyrol">South Tyrol</option>
-      <option value="Garda">Garda</option>
-    </select>
+      --focus: rgba(56,189,248,.60);
+      --ring: 0 0 0 3px var(--focus);
+    }
 
-    <!-- PRODUCTS LIST -->
-    <div id="products"></div>
+    *{ box-sizing: border-box; }
+    html, body{ height: 100%; }
 
-    <!-- CART + CHECKOUT FORM -->
-    <div class="cart">
-      <h2>Carrello</h2>
-      <div id="cart-items"></div>
-      <p><strong>Totale: €<span id="total">0.00</span></strong></p>
-      <p><small>Prezzi sempre mostrati IVA esclusa.</small></p>
+    body{
+      margin: 0;
+      min-height: 100svh;
+      padding: clamp(18px, 3vw, 28px);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      background:
+        radial-gradient(1200px 600px at 18% 10%, rgba(56,189,248,.22), transparent 60%),
+        radial-gradient(900px 500px at 85% 18%, rgba(167,139,250,.18), transparent 55%),
+        radial-gradient(900px 600px at 42% 92%, rgba(34,197,94,.12), transparent 55%),
+        radial-gradient(900px 600px at 50% 50%, rgba(255,255,255,.04), transparent 60%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+    }
 
-      <input id="name" type="text" placeholder="Il tuo nome" required />
-      <input id="email" type="email" placeholder="La tua email" required />
-      <button id="checkout">Invia Ordine</button>
-    </div>
-    <!-- Toast container -->
-    <div id="toast-container"></div>
+    .shell{ width: min(980px, 100%); margin: 0 auto; }
 
-    <script>
-      // 1) Define per-region catalogs
-      const PRODUCTS_BY_REGION = {
-        Dolomites: [
-          { id: 1, title: "ASCIUGAMANO BAGNO 100x150", description: "6 per Pacco", price: 11.77 },
-          { id: 2, title: "LENZUOLO C.ANG 2P DELUXE 200x210", description: "5 per Pacco", price: 21.47 },
-          { id: 3, title: "LENZUOLO C.ANG 1P DELUXE 100x210", description: "5 per Pacco", price: 16.45 },
-          { id: 4, title: "LENZUOLO 2P 240x300", description: "10 per Pacco", price: 28.17 },
-          { id: 5, title: "LENZUOLO 1P 160x300", description: "10 per Pacco", price: 19.04 },
-          { id: 6, title: "FEDERA GRANDE 60x80", description: "25 per Pacco", price: 29.44 },
-          { id: 7, title: "FEDERA PICCOLA 50x80", description: "25 per Pacco", price: 26.99 },
-          { id: 8, title: "COPRIPIUMINO 1P 135x200", description: "10 per Pacco", price: 35.78 },
-          { id: 9, title: "TOVAGLIA 150x150", description: "10 per Pacco", price: 29.75 },
-          { id: 10, title: "STROFINACCI PER BICCHIERI 50x70", description: "25 per Pacco", price: 19.99 },
-          { id: 11, title: "SCENDIBAGNO 50x90", description: "12 per Pacco", price: 18.18 },
-          { id: 12, title: "ASCIUGAMANO BIDET 40x60", description: "20 per Pacco", price: 19.36 },
-          { id: 13, title: "ASCIUGAMANO VISO 50x100", description: "12 per Pacco", price: 11.51 },
-        ],
-        "South Tyrol": [
-          { id: 1, title: "ASCIUGAMANO BAGNO 100x150", description: "6 per Pacco", price: 11.77 },
-          { id: 2, title: "LENZUOLO 2P 240x300", description: "10 per Pacco", price: 28.17 },
-          { id: 3, title: "LENZUOLO 1P 160x300", description: "10 per Pacco", price: 19.04 },
-          { id: 4, title: "FEDERA GRANDE 60x80", description: "25 per Pacco", price: 29.44 },
-          { id: 5, title: "FEDERA PICCOLA 50x80", description: "25 per Pacco", price: 26.99 },
-          { id: 6, title: "COPRIPIUMINO 1P 135x200", description: "10 per Pacco", price: 35.78 },
-          { id: 7, title: "TOVAGLIA 150x150", description: "10 per Pacco", price: 29.75 },
-          { id: 8, title: "STROFINACCI PER BICCHIERI 50x70", description: "25 per Pacco", price: 19.99 },
-          { id: 9, title: "SCENDIBAGNO 50x90", description: "12 per Pacco", price: 18.18 },
-          { id: 10, title: "ASCIUGAMANO BIDET 40x60", description: "20 per Pacco", price: 19.36 },
-          { id: 11, title: "ASCIUGAMANO VISO 50x100", description: "12 per Pacco", price: 11.51 },
-        ],
-        Garda: [
-          { id: 1, title: "ASCIUGAMANO BAGNO 100x150", description: "6 per Pacco", price: 11.77 },
-          { id: 2, title: "LENZUOLO 2P 240x300", description: "10 per Pacco", price: 28.17 },
-          { id: 3, title: "LENZUOLO 1P 160x300", description: "10 per Pacco", price: 19.04 },
-          { id: 4, title: "FEDERA GRANDE 60x80", description: "25 per Pacco", price: 29.44 },
-          { id: 5, title: "FEDERA PICCOLA 50x80", description: "25 per Pacco", price: 26.99 },
-          { id: 6, title: "COPRIPIUMINO 1P 135x200", description: "10 per Pacco", price: 35.78 },
-          { id: 7, title: "TOVAGLIA 150x150", description: "10 per Pacco", price: 29.75 },
-          { id: 8, title: "STROFINACCI PER BICCHIERI 50x70", description: "25 per Pacco", price: 19.99 },
-          { id: 9, title: "SCENDIBAGNO 50x90", description: "12 per Pacco", price: 18.18 },
-          { id: 10, title: "ASCIUGAMANO BIDET 40x60", description: "20 per Pacco", price: 19.36 },
-          { id: 11, title: "ASCIUGAMANO VISO 50x100", description: "12 per Pacco", price: 11.51 },
-        ]
-      };
+    .card{
+      border-radius: var(--radius);
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--shadow);
+      padding: clamp(20px, 3vw, 32px);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
 
-      let currentProducts = [];
-      let cart = [];
+    header{
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
 
-      // 2) Render products with spinner controls
-      function renderProducts() {
-        const root = document.getElementById("products");
-        root.innerHTML = "";
-        currentProducts.forEach(p => {
-          const line = cart.find(x => x.id === p.id);
-          const qty  = line ? line.qty : 0;
-          const div = document.createElement("div");
-          div.className = "product";
-          div.innerHTML = `
-            <div>
-              <div><strong>${p.title} — €${p.price.toFixed(2)}</strong></div>
-              <div><small>${p.description}</small></div>
-            </div>
-            <div class="qty-control">
-              <button onclick="removeFromCart(${p.id})">−</button>
-              <input 
-                type="number"
-                min="0"
-                value="${qty}"
-                onchange="updateQty(${p.id}, this.value)"
-              />
-              <button onclick="addToCart(${p.id})">+</button>
-            </div>
-          `;
-          root.append(div);
-        });
-      }
+    .logo-img{
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      object-fit: contain;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.14);
+      padding: 6px;
+      box-shadow: 0 12px 34px rgba(0,0,0,.30);
+      flex: 0 0 auto;
+    }
 
-      // 3) Cart operations
-      function addToCart(id) {
-        const prod = currentProducts.find(x => x.id === id);
-        let line  = cart.find(x => x.id === id);
-        if (!line) { line = {...prod, qty:0}; cart.push(line); }
-        line.qty++;
-        renderCart();
-        renderProducts();
-      }
-      function removeFromCart(id) {
-        cart = cart.map(x => x.id===id ? {...x,qty:x.qty-1} : x).filter(x => x.qty>0);
-        renderCart();
-        renderProducts();
-      }
-      function updateQty(id, value) {
-        const q = parseInt(value,10) || 0;
-        cart = cart.map(x => x.id===id ? {...x,qty:q} : x).filter(x => x.qty>0);
-        renderCart();
-        renderProducts();
-      }
+    h1{
+      margin: 0;
+      font-size: clamp(20px, 2.4vw, 28px);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
 
-      // 4) Render cart
-      function renderCart() {
-        const root = document.getElementById("cart-items");
-        root.innerHTML = "";
-        let total = 0;
-        cart.forEach(item => {
-          total += item.qty * item.price;
-          const div = document.createElement("div");
-          div.className = "cart-item";
-          div.innerHTML = `
-            <span>${item.title}</span>
-            <div class="qty-control">
-              <button onclick="removeFromCart(${item.id})">−</button>
-              <input 
-                type="number"
-                value="${item.qty}"
-                min="0"
-                onchange="updateQty(${item.id}, this.value)"
-              />
-              <button onclick="addToCart(${item.id})">+</button>
-            </div>
-          `;
-          root.append(div);
-        });
-        document.getElementById("total").textContent = total.toFixed(2);
-      }
+    .sub{
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
 
-      // 5) Toast helper
-      function showToast(msg,duration=3000){
-        const c = document.getElementById("toast-container");
-        const t = document.createElement("div");
-        t.className = "toast";
-        t.textContent = msg;
-        c.append(t);
-        requestAnimationFrame(()=>t.classList.add("show"));
-        setTimeout(()=>{
-          t.classList.remove("show");
-          t.addEventListener("transitionend",()=>t.remove(),{once:true});
-        },duration);
-      }
+    .section-title{
+      margin: 18px 0 10px;
+      font-size: 14px;
+      color: rgba(255,255,255,.82);
+    }
 
-      // 6) Region change
-      document.getElementById("region").onchange = function(){
-        cart = [];
-        renderCart();
-        currentProducts = PRODUCTS_BY_REGION[this.value] || [];
-        renderProducts();
-      };
+    label{
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
 
-      // 7) Prevent double‐submit & checkout
-      let isSubmitting = false;
-      document.getElementById("checkout").onclick = async ()=> {
-        if (isSubmitting) return;
-        isSubmitting = true;
-        const btn = document.getElementById("checkout");
-        btn.disabled = true;
-        btn.textContent = "Invio in corso…";
+    select,
+    input[type="text"],
+    input[type="email"],
+    input[type="number"]{
+      width: 100%;
+      padding: 14px;
+      border-radius: 14px;
+      background: var(--field);
+      border: 1px solid var(--field-border);
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+    }
 
-        const region = document.getElementById("region").value;
-        const name   = document.getElementById("name").value.trim();
-        const email  = document.getElementById("email").value.trim();
-        if (!region || !name || !email || cart.length === 0) {
-          showToast("Seleziona regione, nome, email e aggiungi almeno un prodotto.");
-          btn.disabled = false;
-          btn.textContent = "Invia Ordine";
-          isSubmitting = false;
-          return;
-        }
+    select:focus-visible,
+    input:focus-visible{
+      box-shadow: var(--ring);
+      border-color: rgba(56,189,248,.55);
+      background: rgba(255,255,255,.12);
+    }
 
-        try {
-          const res = await fetch("/checkout", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              region, name, email, cartJson: JSON.stringify(cart)
-            })
-          });
-          const { success } = await res.json();
-          if (success) showToast("Ordine inviato! Controlla la tua email.");
-          else showToast("Errore—riprovare.");
-        } catch {
-          showToast("Errore di rete—riprovare.");
-        }
+    /* dropdown fix */
+    select{ color-scheme: dark; }
+    select option,
+    select optgroup{
+      background-color: #0b1220;
+      color: rgba(255,255,255,.92);
+    }
+    select option:checked{
+      background-color: rgba(56,189,248,.28);
+      color: rgba(255,255,255,.92);
+    }
 
+    .row{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    @media (min-width: 780px){
+      .row.cols-2{ grid-template-columns: 1fr 1fr; }
+      .row.cols-3{ grid-template-columns: 1.2fr 1fr 1fr; }
+    }
+
+    .product,
+    .cart-item{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      padding:12px;
+      border-radius:16px;
+      background:var(--panel);
+      border:1px solid var(--panel-border);
+      margin-bottom:10px;
+    }
+
+    .product small{ display:block; color: rgba(255,255,255,.70); margin-top:4px; }
+
+    .qty-control{
+      display:flex;
+      gap:6px;
+      align-items:center;
+      width:100%;
+      max-width:240px;
+      justify-content:flex-end;
+    }
+
+    .qty-control button{
+      width:auto;
+      padding:10px 12px;
+      border-radius:12px;
+      background:rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.16);
+      color:var(--text);
+      font-size:18px;
+      font-weight:600;
+      cursor:pointer;
+      transition: transform .10s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+
+    .qty-control button:hover{
+      background: rgba(255,255,255,.16);
+      border-color: rgba(255,255,255,.24);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 30px rgba(0,0,0,.20);
+    }
+
+    .qty-control button:active{ transform: translateY(0px); box-shadow:none; }
+
+    .qty-control input{
+      width:68px;
+      text-align:center;
+      padding:10px 10px;
+      background:rgba(255,255,255,.08);
+    }
+
+    .cart{
+      margin-top:18px;
+      padding-top:14px;
+      border-top:1px solid rgba(255,255,255,.12);
+    }
+
+    button#checkout{
+      width:100%;
+      margin-top:12px;
+      padding:14px 16px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.16);
+      background:rgba(255,255,255,.10);
+      color:var(--text);
+      font-size:15px;
+      font-weight:650;
+      letter-spacing:-0.01em;
+      cursor:pointer;
+      transition: transform .10s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+
+    button#checkout:hover{
+      background: rgba(255,255,255,.16);
+      border-color: rgba(255,255,255,.24);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 30px rgba(0,0,0,.20);
+    }
+
+    button#checkout:active{ transform: translateY(0px); box-shadow:none; }
+
+    button#checkout:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+      transform:none;
+      box-shadow:none;
+    }
+
+    #toast-container{
+      position:fixed;
+      bottom:1rem;
+      right:1rem;
+      display:flex;
+      flex-direction:column;
+      gap:0.5rem;
+      z-index:9999;
+    }
+
+    .toast{
+      background: rgba(20,20,24,.92);
+      padding: 0.75em 1em;
+      border-radius: 14px;
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity .3s ease, transform .3s ease;
+      font-size: 0.9rem;
+      border: 1px solid rgba(255,255,255,.12);
+      min-width: 220px;
+    }
+
+    .toast.show{ opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 560px){
+      .product, .cart-item{ flex-direction: column; align-items: flex-start; }
+      .qty-control{ max-width:none; justify-content:flex-start; }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="shell">
+    <section class="card">
+      <header>
+        <img src="logo.png" alt="MUSE Logo" class="logo-img" />
+        <div>
+          <h1>MUSE External Shop</h1>
+          <div class="sub">Prezzi sempre mostrati IVA esclusa.</div>
+        </div>
+      </header>
+
+      <div class="section-title">Dettagli Cliente</div>
+
+      <div class="row cols-3">
+        <div>
+          <label for="region">Regione</label>
+          <select id="region" required>
+            <option value="">Seleziona Regione…</option>
+            <option value="Dolomites">Dolomites</option>
+            <option value="South Tyrol">South Tyrol</option>
+            <option value="Garda">Garda</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="name">Nome</label>
+          <input id="name" type="text" placeholder="Il tuo nome" required />
+        </div>
+
+        <div>
+          <label for="email">Email</label>
+          <input id="email" type="email" placeholder="La tua email" required />
+        </div>
+      </div>
+
+      <div class="section-title">Prodotti</div>
+      <div id="products"></div>
+
+      <div class="cart">
+        <div class="section-title">Carrello</div>
+        <div id="cart-items"></div>
+        <div class="sub">Totale: €<span id="total">0.00</span></div>
+        <button id="checkout">Invia Ordine</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast-container"></div>
+
+  <script>
+    // 1) Define per-region catalogs
+    const PRODUCTS_BY_REGION = {
+      Dolomites: [
+        { id: 1, title: "ASCIUGAMANO BAGNO 100x150", description: "6 per Pacco", price: 11.77 },
+        { id: 2, title: "LENZUOLO C.ANG 2P DELUXE 200x210", description: "5 per Pacco", price: 21.47 },
+        { id: 3, title: "LENZUOLO C.ANG 1P DELUXE 100x210", description: "5 per Pacco", price: 16.45 },
+        { id: 4, title: "LENZUOLO 2P 240x300", description: "10 per Pacco", price: 28.17 },
+        { id: 5, title: "LENZUOLO 1P 160x300", description: "10 per Pacco", price: 19.04 },
+        { id: 6, title: "FEDERA GRANDE 60x80", description: "25 per Pacco", price: 29.44 },
+        { id: 7, title: "FEDERA PICCOLA 50x80", description: "25 per Pacco", price: 26.99 },
+        { id: 8, title: "COPRIPIUMINO 1P 135x200", description: "10 per Pacco", price: 35.78 },
+        { id: 9, title: "TOVAGLIA 150x150", description: "10 per Pacco", price: 29.75 },
+        { id: 10, title: "STROFINACCI PER BICCHIERI 50x70", description: "25 per Pacco", price: 19.99 },
+        { id: 11, title: "SCENDIBAGNO 50x90", description: "12 per Pacco", price: 18.18 },
+        { id: 12, title: "ASCIUGAMANO BIDET 40x60", description: "20 per Pacco", price: 19.36 },
+        { id: 13, title: "ASCIUGAMANO VISO 50x100", description: "12 per Pacco", price: 11.51 },
+      ],
+      "South Tyrol": [
+        { id: 1, title: "ASCIUGAMANO BAGNO 100x150", description: "6 per Pacco", price: 11.77 },
+        { id: 2, title: "LENZUOLO 2P 240x300", description: "10 per Pacco", price: 28.17 },
+        { id: 3, title: "LENZUOLO 1P 160x300", description: "10 per Pacco", price: 19.04 },
+        { id: 4, title: "FEDERA GRANDE 60x80", description: "25 per Pacco", price: 29.44 },
+        { id: 5, title: "FEDERA PICCOLA 50x80", description: "25 per Pacco", price: 26.99 },
+        { id: 6, title: "COPRIPIUMINO 1P 135x200", description: "10 per Pacco", price: 35.78 },
+        { id: 7, title: "TOVAGLIA 150x150", description: "10 per Pacco", price: 29.75 },
+        { id: 8, title: "STROFINACCI PER BICCHIERI 50x70", description: "25 per Pacco", price: 19.99 },
+        { id: 9, title: "SCENDIBAGNO 50x90", description: "12 per Pacco", price: 18.18 },
+        { id: 10, title: "ASCIUGAMANO BIDET 40x60", description: "20 per Pacco", price: 19.36 },
+        { id: 11, title: "ASCIUGAMANO VISO 50x100", description: "12 per Pacco", price: 11.51 },
+      ],
+      Garda: [
+        { id: 1, title: "ASCIUGAMANO BAGNO 100x150", description: "6 per Pacco", price: 11.77 },
+        { id: 2, title: "LENZUOLO 2P 240x300", description: "10 per Pacco", price: 28.17 },
+        { id: 3, title: "LENZUOLO 1P 160x300", description: "10 per Pacco", price: 19.04 },
+        { id: 4, title: "FEDERA GRANDE 60x80", description: "25 per Pacco", price: 29.44 },
+        { id: 5, title: "FEDERA PICCOLA 50x80", description: "25 per Pacco", price: 26.99 },
+        { id: 6, title: "COPRIPIUMINO 1P 135x200", description: "10 per Pacco", price: 35.78 },
+        { id: 7, title: "TOVAGLIA 150x150", description: "10 per Pacco", price: 29.75 },
+        { id: 8, title: "STROFINACCI PER BICCHIERI 50x70", description: "25 per Pacco", price: 19.99 },
+        { id: 9, title: "SCENDIBAGNO 50x90", description: "12 per Pacco", price: 18.18 },
+        { id: 10, title: "ASCIUGAMANO BIDET 40x60", description: "20 per Pacco", price: 19.36 },
+        { id: 11, title: "ASCIUGAMANO VISO 50x100", description: "12 per Pacco", price: 11.51 },
+      ]
+    };
+
+    let currentProducts = [];
+    let cart = [];
+
+    // 2) Render products with spinner controls
+    function renderProducts() {
+      const root = document.getElementById("products");
+      root.innerHTML = "";
+      currentProducts.forEach(p => {
+        const line = cart.find(x => x.id === p.id);
+        const qty  = line ? line.qty : 0;
+        const div = document.createElement("div");
+        div.className = "product";
+        div.innerHTML = `
+          <div>
+            <div><strong>${p.title} — €${p.price.toFixed(2)}</strong></div>
+            <div><small>${p.description}</small></div>
+          </div>
+          <div class="qty-control">
+            <button onclick="removeFromCart(${p.id})">−</button>
+            <input
+              type="number"
+              min="0"
+              value="${qty}"
+              onchange="updateQty(${p.id}, this.value)"
+            />
+            <button onclick="addToCart(${p.id})">+</button>
+          </div>
+        `;
+        root.append(div);
+      });
+    }
+
+    // 3) Cart operations
+    function addToCart(id) {
+      const prod = currentProducts.find(x => x.id === id);
+      let line  = cart.find(x => x.id === id);
+      if (!line) { line = {...prod, qty:0}; cart.push(line); }
+      line.qty++;
+      renderCart();
+      renderProducts();
+    }
+    function removeFromCart(id) {
+      cart = cart.map(x => x.id===id ? {...x,qty:x.qty-1} : x).filter(x => x.qty>0);
+      renderCart();
+      renderProducts();
+    }
+    function updateQty(id, value) {
+      const q = parseInt(value,10) || 0;
+      cart = cart.map(x => x.id===id ? {...x,qty:q} : x).filter(x => x.qty>0);
+      renderCart();
+      renderProducts();
+    }
+
+    // 4) Render cart
+    function renderCart() {
+      const root = document.getElementById("cart-items");
+      root.innerHTML = "";
+      let total = 0;
+      cart.forEach(item => {
+        total += item.qty * item.price;
+        const div = document.createElement("div");
+        div.className = "cart-item";
+        div.innerHTML = `
+          <span>${item.title}</span>
+          <div class="qty-control">
+            <button onclick="removeFromCart(${item.id})">−</button>
+            <input
+              type="number"
+              value="${item.qty}"
+              min="0"
+              onchange="updateQty(${item.id}, this.value)"
+            />
+            <button onclick="addToCart(${item.id})">+</button>
+          </div>
+        `;
+        root.append(div);
+      });
+      document.getElementById("total").textContent = total.toFixed(2);
+    }
+
+    // 5) Toast helper
+    function showToast(msg,duration=3000){
+      const c = document.getElementById("toast-container");
+      const t = document.createElement("div");
+      t.className = "toast";
+      t.textContent = msg;
+      c.append(t);
+      requestAnimationFrame(()=>t.classList.add("show"));
+      setTimeout(()=>{
+        t.classList.remove("show");
+        t.addEventListener("transitionend",()=>t.remove(),{once:true});
+      },duration);
+    }
+
+    // 6) Region change
+    document.getElementById("region").onchange = function(){
+      cart = [];
+      renderCart();
+      currentProducts = PRODUCTS_BY_REGION[this.value] || [];
+      renderProducts();
+    };
+
+    // 7) Prevent double-submit & checkout
+    let isSubmitting = false;
+    document.getElementById("checkout").onclick = async ()=> {
+      if (isSubmitting) return;
+      isSubmitting = true;
+      const btn = document.getElementById("checkout");
+      btn.disabled = true;
+      btn.textContent = "Invio in corso…";
+
+      const region = document.getElementById("region").value;
+      const name   = document.getElementById("name").value.trim();
+      const email  = document.getElementById("email").value.trim();
+      if (!region || !name || !email || cart.length === 0) {
+        showToast("Seleziona regione, nome, email e aggiungi almeno un prodotto.");
         btn.disabled = false;
         btn.textContent = "Invia Ordine";
         isSubmitting = false;
-      };
+        return;
+      }
 
-      // initial render
-      renderCart();
-    </script>
-  </body>
+      try {
+        const res = await fetch("/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            region, name, email, cartJson: JSON.stringify(cart)
+          })
+        });
+        const { success } = await res.json();
+        if (success) showToast("Ordine inviato! Controlla la tua email.");
+        else showToast("Errore—riprovare.");
+      } catch {
+        showToast("Errore di rete—riprovare.");
+      }
+
+      btn.disabled = false;
+      btn.textContent = "Invia Ordine";
+      isSubmitting = false;
+    };
+
+    // initial render
+    renderCart();
+  </script>
+</body>
 </html>
