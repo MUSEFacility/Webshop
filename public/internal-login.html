@@ -8,8 +8,8 @@
 
   <style>
     :root{
-      --bg0: #070b14;
-      --bg1: #0b1220;
+      --bg0:#070b14;
+      --bg1:#0b1220;
 
       --card: rgba(255,255,255,.08);
       --card-border: rgba(255,255,255,.16);
@@ -19,9 +19,6 @@
 
       --field: rgba(255,255,255,.10);
       --field-border: rgba(255,255,255,.16);
-
-      --primary: rgba(56,189,248,.95);
-      --primary-2: rgba(167,139,250,.88);
 
       --danger: rgba(248,113,113,.95);
 
@@ -53,9 +50,7 @@
         linear-gradient(180deg, var(--bg0), var(--bg1));
     }
 
-    .shell{
-      width: min(520px, 100%);
-    }
+    .shell{ width: min(520px, 100%); }
 
     .card{
       border-radius: var(--radius);
@@ -74,24 +69,16 @@
       margin-bottom: 16px;
     }
 
-    .logo{
+    .logo-img{
       width: 46px;
       height: 46px;
       border-radius: 16px;
-      background: linear-gradient(135deg, var(--primary), var(--primary-2));
+      object-fit: contain;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.14);
+      padding: 6px;
       box-shadow: 0 12px 34px rgba(0,0,0,.30);
       flex: 0 0 auto;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .logo::after{
-      content: "";
-      position: absolute;
-      inset: -40%;
-      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.28), transparent 55%);
-      transform: rotate(12deg);
-      pointer-events: none;
     }
 
     h1{
@@ -133,9 +120,7 @@
       transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
     }
 
-    input[type="password"]::placeholder{
-      color: rgba(255,255,255,.45);
-    }
+    input[type="password"]::placeholder{ color: rgba(255,255,255,.45); }
 
     input[type="password"]:focus-visible{
       box-shadow: var(--ring);
@@ -164,10 +149,7 @@
       box-shadow: 0 10px 30px rgba(0,0,0,.20);
     }
 
-    button:active{
-      transform: translateY(0px);
-      box-shadow: none;
-    }
+    button:active{ transform: translateY(0px); box-shadow: none; }
 
     button:focus-visible{
       outline: none;
@@ -183,9 +165,7 @@
       line-height: 1.4;
     }
 
-    .error.is-visible{
-      color: var(--danger);
-    }
+    .error.is-visible{ color: var(--danger); }
 
     .foot{
       margin-top: 14px;
@@ -204,7 +184,7 @@
   <main class="shell">
     <section class="card" aria-label="Accesso area riservata">
       <header>
-        <div class="logo" aria-hidden="true"></div>
+        <img src="logo.png" alt="MUSE Logo" class="logo-img" />
         <div>
           <h1>Area Riservata a proprietari MUSE</h1>
           <p>Per accedere inserisci la password</p>
