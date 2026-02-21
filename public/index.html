@@ -57,15 +57,17 @@
       margin-bottom: 18px;
     }
 
-    .logo{
-      width: 44px;
-      height: 44px;
-      border-radius: 14px;
-      background:
-        linear-gradient(135deg, rgba(56,189,248,.95), rgba(167,139,250,.85));
-      box-shadow: 0 10px 30px rgba(0,0,0,.25);
-      flex: 0 0 auto;
-    }
+.logo-img{
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  border-radius: 14px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.14);
+  padding: 6px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  flex: 0 0 auto;
+}
 
     h1{
       margin: 0;
@@ -170,7 +172,7 @@
   <main class="shell">
     <section class="card" aria-label="Selezione negozio">
       <header>
-        <div class="logo" aria-hidden="true"></div>
+       <img src="logo.png" alt="MUSE Logo" class="logo-img" />
         <div>
           <h1>Benvenuto al MUSE Shop</h1>
           <p>Seleziona il negozio da aprire:</p>
