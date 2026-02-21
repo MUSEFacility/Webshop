@@ -12,43 +12,22 @@
       --bg1:#0b1220;
 
       --card: rgba(255,255,255,.08);
-      --card2: rgba(255,255,255,.06);
-      --border: rgba(255,255,255,.16);
+      --card-border: rgba(255,255,255,.16);
 
       --text: rgba(255,255,255,.92);
       --muted: rgba(255,255,255,.72);
 
       --field: rgba(255,255,255,.10);
-      --field2: rgba(255,255,255,.12);
+      --field-border: rgba(255,255,255,.16);
 
-      --focus: rgba(56,189,248,.60);
-      --ring: 0 0 0 3px var(--focus);
-
-      --danger: rgba(248,113,113,.95);
+      --panel: rgba(255,255,255,.06);
+      --panel-border: rgba(255,255,255,.14);
 
       --shadow: 0 22px 70px rgba(0,0,0,.48);
       --radius: 20px;
 
-      --gap: 14px;
-      /* Fix unreadable dropdown list on dark UI */
-select{
-  color-scheme: dark;              /* helps native pickers choose dark styling when supported */
-  background-color: var(--field);
-  color: var(--text);
-}
-
-/* The opened list (works on most desktop browsers) */
-select option,
-select optgroup{
-  background-color: #0b1220;       /* dark panel */
-  color: rgba(255,255,255,.92);    /* readable text */
-}
-
-/* Highlighted option */
-select option:checked{
-  background-color: rgba(56,189,248,.28);
-  color: rgba(255,255,255,.92);
-}
+      --focus: rgba(56,189,248,.60);
+      --ring: 0 0 0 3px var(--focus);
     }
 
     *{ box-sizing: border-box; }
@@ -57,6 +36,7 @@ select option:checked{
     body{
       margin: 0;
       min-height: 100svh;
+      padding: clamp(18px, 3vw, 28px);
       color: var(--text);
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
       text-rendering: optimizeLegibility;
@@ -67,22 +47,16 @@ select option:checked{
         radial-gradient(900px 600px at 42% 92%, rgba(34,197,94,.12), transparent 55%),
         radial-gradient(900px 600px at 50% 50%, rgba(255,255,255,.04), transparent 60%),
         linear-gradient(180deg, var(--bg0), var(--bg1));
-      padding: clamp(18px, 3vw, 28px);
     }
 
-    .shell{
-      width: min(1040px, 100%);
-      margin: 0 auto;
-      display: grid;
-      gap: clamp(14px, 2.2vw, 20px);
-    }
+    .shell{ width: min(980px, 100%); margin: 0 auto; }
 
     .card{
       border-radius: var(--radius);
       background: var(--card);
-      border: 1px solid var(--border);
+      border: 1px solid var(--card-border);
       box-shadow: var(--shadow);
-      padding: clamp(18px, 2.8vw, 28px);
+      padding: clamp(20px, 3vw, 32px);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
     }
@@ -91,26 +65,19 @@ select option:checked{
       display: flex;
       align-items: center;
       gap: 14px;
-      justify-content: space-between;
-      flex-wrap: wrap;
+      margin-bottom: 18px;
     }
 
-    .brand{
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-width: 240px;
-    }
-
-    .brand img{
-      width: 44px;
-      height: 44px;
+    .logo-img{
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
       object-fit: contain;
-      border-radius: 14px;
       background: rgba(255,255,255,.10);
       border: 1px solid rgba(255,255,255,.14);
       padding: 6px;
-      box-shadow: 0 12px 34px rgba(0,0,0,.22);
+      box-shadow: 0 12px 34px rgba(0,0,0,.30);
+      flex: 0 0 auto;
     }
 
     h1{
@@ -121,39 +88,23 @@ select option:checked{
     }
 
     .sub{
-      margin: 6px 0 0;
+      margin-top: 6px;
       color: var(--muted);
       font-size: 14px;
       line-height: 1.5;
     }
 
-    .grid{
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: clamp(14px, 2.4vw, 18px);
-    }
-
-    @media (min-width: 980px){
-      .grid{ grid-template-columns: 1.15fr .85fr; align-items: start; }
-    }
-
     .section-title{
-      margin: 0 0 10px;
+      margin: 18px 0 10px;
       font-size: 14px;
       color: rgba(255,255,255,.82);
-      letter-spacing: -0.01em;
-    }
-
-    .form{
-      display: grid;
-      gap: 12px;
     }
 
     label{
-      display: grid;
-      gap: 8px;
+      display: block;
       font-size: 13px;
       color: var(--muted);
+      margin-bottom: 6px;
     }
 
     select,
@@ -162,10 +113,10 @@ select option:checked{
     input[type="date"],
     input[type="number"]{
       width: 100%;
-      padding: 13px 14px;
+      padding: 14px;
       border-radius: 14px;
       background: var(--field);
-      border: 1px solid rgba(255,255,255,.16);
+      border: 1px solid var(--field-border);
       color: var(--text);
       font-size: 15px;
       outline: none;
@@ -176,17 +127,28 @@ select option:checked{
     input:focus-visible{
       box-shadow: var(--ring);
       border-color: rgba(56,189,248,.55);
-      background: var(--field2);
+      background: rgba(255,255,255,.12);
     }
 
-    input::placeholder{ color: rgba(255,255,255,.45); }
+    /* dropdown fix */
+    select{ color-scheme: dark; }
+    select option,
+    select optgroup{
+      background-color: #0b1220;
+      color: rgba(255,255,255,.92);
+    }
+    select option:checked{
+      background-color: rgba(56,189,248,.28);
+      color: rgba(255,255,255,.92);
+    }
 
     button{
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 14px;
       border: 1px solid rgba(255,255,255,.16);
       background: rgba(255,255,255,.10);
       color: var(--text);
-      border-radius: 14px;
-      padding: 12px 14px;
       font-size: 15px;
       font-weight: 650;
       letter-spacing: -0.01em;
@@ -201,7 +163,7 @@ select option:checked{
       box-shadow: 0 10px 30px rgba(0,0,0,.20);
     }
 
-    button:active{ transform: translateY(0); box-shadow: none; }
+    button:active{ transform: translateY(0px); box-shadow: none; }
 
     button:focus-visible{
       outline: none;
@@ -218,166 +180,83 @@ select option:checked{
 
     .row{
       display: grid;
-      gap: 12px;
       grid-template-columns: 1fr;
+      gap: 12px;
     }
 
-    @media (min-width: 720px){
-      .row{ grid-template-columns: 1fr 1fr; }
+    @media (min-width: 780px){
+      .row.cols-2{ grid-template-columns: 1fr 1fr; }
+      .row.cols-3{ grid-template-columns: 1.2fr 1fr 1fr; }
     }
 
-    /* Val Gardena drawer */
-    .vg-toggle{
-      display: none;
-      border: 1px dashed rgba(255,255,255,.22);
-      padding: 12px 14px;
-      border-radius: 16px;
-      background: rgba(255,255,255,.06);
-      margin-top: 8px;
-    }
-
-    .vg-toggle label{
+    .product,
+    .cart-item{
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 10px;
-      cursor: pointer;
-      margin: 0;
-      color: rgba(255,255,255,.86);
-      font-size: 14px;
-    }
-
-    .vg-toggle input[type="checkbox"]{
-      width: 18px;
-      height: 18px;
-      accent-color: rgb(56,189,248);
-    }
-
-    .vg-box{
-      display: none;
-      margin-top: 10px;
-      border-radius: 16px;
-      background: rgba(255,255,255,.06);
-      border: 1px solid rgba(255,255,255,.14);
-      padding: 14px;
-    }
-
-    .note{
-      display: block;
-      margin-top: 10px;
-      color: rgba(255,255,255,.70);
-      font-size: 12px;
-      line-height: 1.45;
-    }
-
-    .note.danger{ color: var(--danger); }
-
-    /* Products */
-    .products{
-      display: grid;
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .product{
-      display: grid;
-      gap: 10px;
+      gap: 12px;
       padding: 12px;
       border-radius: 16px;
-      background: rgba(255,255,255,.06);
-      border: 1px solid rgba(255,255,255,.14);
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      margin-bottom: 10px;
     }
 
-    @media (min-width: 720px){
-      .product{
-        grid-template-columns: 1fr auto;
-        align-items: center;
-        gap: 14px;
-      }
-    }
+    .product small{ display: block; color: rgba(255,255,255,.70); margin-top: 4px; }
 
-    .prod-title{
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      line-height: 1.25;
-    }
-
-    .prod-meta{
-      margin-top: 4px;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.35;
-    }
-
-    /* Quantity control */
     .qty-control{
-      display: grid;
-      grid-template-columns: 42px 1fr 42px;
-      gap: 8px;
+      display: flex;
+      gap: 6px;
       align-items: center;
-      width: min(260px, 100%);
-      justify-self: end;
+      width: 100%;
+      max-width: 240px;
+      justify-content: flex-end;
     }
 
     .qty-control button{
-      padding: 10px 0;
-      border-radius: 14px;
+      width: auto;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.16);
       font-size: 18px;
-      line-height: 1;
-      font-weight: 750;
-      background: rgba(255,255,255,.08);
+      font-weight: 600;
     }
 
-    .qty-control input[type="number"]{
+    .qty-control input{
+      width: 68px;
       text-align: center;
-      padding: 12px 10px;
-      border-radius: 14px;
+      padding: 10px 10px;
       background: rgba(255,255,255,.08);
     }
 
-    /* Cart */
     .cart{
-      display: grid;
-      gap: 12px;
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,.12);
     }
 
-    .cart-items{
-      display: grid;
-      gap: 10px;
+    .hint{
+      color: rgba(255,255,255,.66);
+      font-size: 12px;
+      line-height: 1.45;
+      margin-top: 8px;
     }
 
-    .cart-item{
-      display: grid;
-      gap: 10px;
-      padding: 12px;
+    .vg-toggle,
+    .vg-box{
       border-radius: 16px;
       background: rgba(255,255,255,.06);
       border: 1px solid rgba(255,255,255,.14);
+      padding: 12px;
     }
 
-    @media (min-width: 720px){
-      .cart-item{
-        grid-template-columns: 1fr auto;
-        align-items: center;
-        gap: 14px;
-      }
-    }
+    .vg-toggle{ display: none; margin-top: 10px; }
+    .vg-toggle label{ display:flex; align-items:center; gap:10px; cursor:pointer; margin: 0; }
 
-    .total{
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 12px;
-      padding-top: 6px;
-      border-top: 1px solid rgba(255,255,255,.12);
-      color: rgba(255,255,255,.88);
-    }
+    .vg-box{ display: none; margin: 10px 0 14px; }
+    .vg-box h3{ margin: 0 0 10px; font-size: 14px; }
 
-    .total small{
-      color: rgba(255,255,255,.58);
-      font-size: 12px;
-    }
-
-    /* Toasts */
     #toast-container{
       position: fixed;
       bottom: 1rem;
@@ -389,136 +268,95 @@ select option:checked{
     }
 
     .toast{
-      min-width: 220px;
-      max-width: min(420px, calc(100vw - 2rem));
       background: rgba(20,20,24,.92);
-      color: rgba(255,255,255,.92);
-      border: 1px solid rgba(255,255,255,.14);
       padding: 0.75em 1em;
       border-radius: 14px;
       opacity: 0;
       transform: translateY(16px);
-      transition: opacity .28s ease, transform .28s ease;
-      font-size: 0.92rem;
-      box-shadow: 0 14px 40px rgba(0,0,0,.35);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      transition: opacity .3s ease, transform .3s ease;
+      font-size: 0.9rem;
+      border: 1px solid rgba(255,255,255,.12);
     }
 
     .toast.show{ opacity: 1; transform: translateY(0); }
 
-    @media (prefers-reduced-motion: reduce){
-      *{ transition: none !important; scroll-behavior: auto !important; }
-      .toast{ transform: none; }
+    @media (max-width: 560px){
+      .product, .cart-item{ flex-direction: column; align-items: flex-start; }
+      .qty-control{ max-width: none; justify-content: flex-start; }
     }
   </style>
 </head>
 
 <body>
   <main class="shell">
-    <section class="card" aria-label="MUSE Internal Shop">
+    <section class="card">
       <header>
-        <div class="brand">
-          <img src="logo.png" alt="MUSE Logo" />
-          <div>
-            <h1>MUSE Internal Shop</h1>
-            <div class="sub">Prezzi sempre mostrati IVA esclusa.</div>
-          </div>
+        <img src="logo.png" alt="MUSE Logo" class="logo-img" />
+        <div>
+          <h1>MUSE Internal Shop</h1>
+          <div class="sub">Prezzi sempre mostrati IVA esclusa.</div>
         </div>
       </header>
-    </section>
 
-    <section class="card">
-      <div class="grid">
+      <div class="section-title">Dettagli Cliente</div>
+
+      <div class="row cols-3">
         <div>
-          <h2 class="section-title">Dettagli Cliente</h2>
-
-          <div class="form" aria-label="Dettagli cliente">
-            <label>
-              Dove ritiri la biancheria
-              <select id="region" required>
-                <option value="">Seleziona dove ritiri la biancheria…</option>
-                <option value="Val Gardena">Val Gardena</option>
-                <option value="South Tyrol">Caldaro</option>
-                <option value="Garda">Garda</option>
-              </select>
-            </label>
-
-            <div class="row">
-              <label>
-                Nome
-                <input id="name" type="text" placeholder="Il tuo nome" autocomplete="name" />
-              </label>
-              <label>
-                Email
-                <input id="email" type="email" placeholder="La tua email" autocomplete="email" />
-              </label>
-            </div>
-
-            <div id="vg-toggle" class="vg-toggle">
-              <label>
-                <input type="checkbox" id="cleaningDrawer" />
-                Richiedi preventivo per la pulizia appartamento (Val Gardena)
-              </label>
-            </div>
-
-            <div id="vg-quote" class="vg-box" aria-label="Richiesta preventivo pulizia Val Gardena">
-              <div class="section-title" style="margin-bottom:8px;">Richiedi Preventivo Pulizia (Val Gardena)</div>
-
-              <div class="row">
-                <label>
-                  ID Appartamento
-                  <input id="aptId" type="text" placeholder="ID (4–5 caratteri alfanumerici)" maxlength="5" />
-                </label>
-                <label>
-                  Data pulizia
-                  <input id="cleanDate" type="date" />
-                </label>
-              </div>
-
-              <button id="sendQuote" type="button">Richiedi Preventivo</button>
-
-              <small class="note">
-                La richiesta deve essere inviata almeno 72 ore prima della mezzanotte del giorno scelto.
-              </small>
-              <small class="note">
-                Importante: l’invio della richiesta non è conferma del servizio. La pulizia verrà programmata solo dopo una conferma scritta da MUSE.holiday.
-              </small>
-              <small class="note danger">
-                Nota: Il prezzo della pulizia NON include biancheria/lavanderia.
-              </small>
-            </div>
-          </div>
-
-          <div style="margin-top:18px;">
-            <h2 class="section-title">Prodotti</h2>
-            <div id="products" class="products"></div>
-          </div>
+          <label for="region">Dove ritiri la biancheria</label>
+          <select id="region" required>
+            <option value="">Seleziona dove ritiri la biancheria…</option>
+            <option value="Val Gardena">Val Gardena</option>
+            <option value="South Tyrol">Caldaro</option>
+            <option value="Garda">Garda</option>
+          </select>
         </div>
 
-        <aside class="cart" aria-label="Carrello">
-          <section class="card" style="box-shadow:none; background: var(--card2);">
-            <h2 class="section-title" style="margin-bottom:6px;">Carrello</h2>
-            <div id="cart-items" class="cart-items"></div>
+        <div>
+          <label for="name">Nome</label>
+          <input id="name" type="text" placeholder="Il tuo nome" />
+        </div>
 
-            <div class="total" aria-label="Totale carrello">
-              <div>Totale</div>
-              <div>€<span id="total">0.00</span></div>
-            </div>
-            <small class="note" style="margin-top:8px;">Prezzi sempre mostrati IVA esclusa.</small>
+        <div>
+          <label for="email">Email</label>
+          <input id="email" type="email" placeholder="La tua email" />
+        </div>
+      </div>
 
-            <button id="checkout" disabled>Invia Ordine</button>
+      <div id="vg-toggle" class="vg-toggle">
+        <label>
+          <input type="checkbox" id="cleaningDrawer" />
+          Richiedi preventivo per la pulizia appartamento (Val Gardena)
+        </label>
+      </div>
 
-            <small class="note" style="margin-top:10px;">
-              Per la pulizia usa il pulsante “Richiedi Preventivo” sopra; non è necessario aggiungere prodotti.
-            </small>
-          </section>
-        </aside>
+      <div id="vg-quote" class="vg-box">
+        <h3>Richiedi Preventivo Pulizia (Val Gardena)</h3>
+        <div class="row cols-2">
+          <input id="aptId" type="text" placeholder="ID Appartamento (4–5 caratteri alfanumerici)" maxlength="5" />
+          <input id="cleanDate" type="date" />
+        </div>
+        <button id="sendQuote">Richiedi Preventivo</button>
+        <div class="hint">
+          La richiesta deve essere inviata almeno 72 ore prima della mezzanotte del giorno scelto.<br/>
+          Importante: l’invio della richiesta non è conferma del servizio. La pulizia verrà programmata solo dopo una conferma scritta da MUSE.holiday.<br/>
+          Nota: Il prezzo della pulizia NON include biancheria/lavanderia.
+        </div>
+      </div>
+
+      <div class="section-title">Prodotti</div>
+      <div id="products"></div>
+
+      <div class="cart">
+        <div class="section-title">Carrello</div>
+        <div id="cart-items"></div>
+        <div class="sub">Totale: €<span id="total">0.00</span></div>
+        <div class="hint">Per la pulizia usa “Richiedi Preventivo” sopra; non è necessario aggiungere prodotti.</div>
+        <button id="checkout" disabled>Invia Ordine</button>
       </div>
     </section>
   </main>
 
-  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+  <div id="toast-container"></div>
 
   <script>
     /* ---------------------------- Catalogs ---------------------------- */
@@ -533,7 +371,7 @@ select option:checked{
         { id: 7,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
         { id: 8,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
         { id: 9,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
-        { id: 10, title: "STROFINACCI PER BICCHIERI 50x70",  description: "25 per Pacco", price: 17.20 },
+        { id: 10, title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
         { id: 11, title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
         { id: 12, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
         { id: 13, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
@@ -546,7 +384,7 @@ select option:checked{
         { id: 5,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
         { id: 6,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
         { id: 7,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
-        { id: 8,  title: "STROFINACCI PER BICCHIERI 50x70",  description: "25 per Pacco", price: 17.20 },
+        { id: 8,  title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
         { id: 9,  title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
         { id: 10, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
         { id: 11, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
@@ -559,7 +397,7 @@ select option:checked{
         { id: 5,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
         { id: 6,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
         { id: 7,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
-        { id: 8,  title: "STROFINACCI PER BICCHIERI 50x70",  description: "25 per Pacco", price: 17.20 },
+        { id: 8,  title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
         { id: 9,  title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
         { id: 10, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
         { id: 11, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
@@ -610,13 +448,13 @@ select option:checked{
         div.className = "product";
         div.innerHTML = `
           <div>
-            <div class="prod-title">${p.title} — €${p.price.toFixed(2)}</div>
-            <div class="prod-meta">${p.description}</div>
+            <div><strong>${p.title} — €${p.price.toFixed(2)}</strong></div>
+            <div><small>${p.description}</small></div>
           </div>
           <div class="qty-control">
-            <button type="button" onclick="removeFromCart(${p.id})" aria-label="Riduci quantità">−</button>
-            <input type="number" min="0" value="${qty}" onchange="updateQty(${p.id}, this.value)" aria-label="Quantità"/>
-            <button type="button" onclick="addToCart(${p.id})" aria-label="Aumenta quantità">+</button>
+            <button onclick="removeFromCart(${p.id})">−</button>
+            <input type="number" min="0" value="${qty}" onchange="updateQty(${p.id}, this.value)"/>
+            <button onclick="addToCart(${p.id})">+</button>
           </div>
         `;
         root.append(div);
@@ -649,48 +487,39 @@ select option:checked{
         const div = document.createElement("div");
         div.className = "cart-item";
         div.innerHTML = `
-          <div class="prod-title" style="font-weight:650;">${item.title}</div>
+          <span>${item.title}</span>
           <div class="qty-control">
-            <button type="button" onclick="removeFromCart(${item.id})" aria-label="Riduci quantità">−</button>
-            <input type="number" value="${item.qty}" min="0" onchange="updateQty(${item.id}, this.value)" aria-label="Quantità"/>
-            <button type="button" onclick="addToCart(${item.id})" aria-label="Aumenta quantità">+</button>
+            <button onclick="removeFromCart(${item.id})">−</button>
+            <input type="number" value="${item.qty}" min="0" onchange="updateQty(${item.id}, this.value)"/>
+            <button onclick="addToCart(${item.id})">+</button>
           </div>
         `;
         root.append(div);
       });
       document.getElementById("total").textContent = total.toFixed(2);
-      checkoutBtn.disabled = cart.length === 0;
+      checkoutBtn.disabled = cart.length === 0; // enable order only if there are items
     }
 
-    function showToast(msg, duration=3000){
+    function showToast(msg,duration=3000){
       const c = document.getElementById("toast-container");
       const t = document.createElement("div");
-      t.className = "toast";
-      t.textContent = msg;
-      c.append(t);
+      t.className = "toast"; t.textContent = msg; c.append(t);
       requestAnimationFrame(()=>t.classList.add("show"));
-      setTimeout(()=>{
-        t.classList.remove("show");
-        t.addEventListener("transitionend",()=>t.remove(),{once:true});
-      }, duration);
+      setTimeout(()=>{ t.classList.remove("show"); t.addEventListener("transitionend",()=>t.remove(),{once:true}); },duration);
     }
 
     /* ---------------------------- Events ---------------------------- */
     regionEl.onchange = function(){
-      cart = [];
-      renderCart();
+      cart = []; renderCart();
       currentProducts = PRODUCTS_BY_REGION[this.value] || [];
-      renderProducts();
-      updateVGVisibility();
+      renderProducts(); updateVGVisibility();
     };
 
     // ORDER (laundry) — needs region, name, email + at least one product
     let isSubmitting = false;
     checkoutBtn.onclick = async ()=>{
       if(isSubmitting) return;
-      isSubmitting = true;
-      checkoutBtn.disabled = true;
-      checkoutBtn.textContent = "Invio in corso…";
+      isSubmitting = true; checkoutBtn.disabled = true; checkoutBtn.textContent = "Invio in corso…";
 
       const region = regionEl.value;
       const name   = nameEl.value.trim();
@@ -699,9 +528,7 @@ select option:checked{
       if(!region || !name || !email || cart.length===0){
         showToast("Per inviare un ORDINE: scegli regione, inserisci nome ed email e aggiungi almeno un prodotto.");
         checkoutBtn.disabled = cart.length === 0 ? true : false;
-        checkoutBtn.textContent = "Invia Ordine";
-        isSubmitting = false;
-        return;
+        checkoutBtn.textContent = "Invia Ordine"; isSubmitting = false; return;
       }
 
       try {
@@ -713,9 +540,7 @@ select option:checked{
         const { success } = await res.json();
         if(success) showToast("Ordine inviato! Controlla la tua email.");
         else showToast("Errore—riprovare.");
-      } catch {
-        showToast("Errore di rete—riprovare.");
-      }
+      } catch { showToast("Errore di rete—riprovare."); }
 
       checkoutBtn.textContent = "Invia Ordine";
       checkoutBtn.disabled = cart.length === 0;
@@ -744,18 +569,16 @@ select option:checked{
         const data = await res.json();
         if (data.success) {
           showToast('Richiesta inviata! Riceverai conferma via email (richiesta ≠ conferma).');
-          if (data.decisionURL) console.log('Decision URL (test):', data.decisionURL);
-
+          if (data.decisionURL) {
+            console.log('Decision URL (test):', data.decisionURL);
+          }
           document.getElementById('aptId').value = '';
           document.getElementById('cleanDate').value = '';
-          drawerEl.checked = false;
-          updateVGVisibility();
+          drawerEl.checked = false; updateVGVisibility();
         } else {
           showToast(data.error || 'Errore nella richiesta.');
         }
-      } catch {
-        showToast('Errore di rete, riprova.');
-      }
+      } catch { showToast('Errore di rete, riprova.'); }
     });
 
     // initial render
