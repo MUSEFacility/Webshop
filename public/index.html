@@ -1,44 +1,214 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8"/>
-  <title>MUSE Shop – Seleziona</title>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MUSE Shop – Seleziona</title>
+
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      padding: 2em;
+    :root{
+      --bg: #0b1220;
+      --card: rgba(255,255,255,.08);
+      --card-border: rgba(255,255,255,.14);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.70);
+      --btn: rgba(255,255,255,.10);
+      --btn-hover: rgba(255,255,255,.16);
+      --focus: rgba(56,189,248,.55);
+      --shadow: 0 20px 60px rgba(0,0,0,.40);
+      --radius: 18px;
+    }
+
+    *{ box-sizing: border-box; }
+
+    body{
       margin: 0;
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background:
+        radial-gradient(1200px 600px at 20% 10%, rgba(56,189,248,.20), transparent 60%),
+        radial-gradient(900px 500px at 80% 20%, rgba(167,139,250,.18), transparent 55%),
+        radial-gradient(900px 600px at 40% 90%, rgba(34,197,94,.12), transparent 55%),
+        var(--bg);
     }
 
-    button {
-      padding: 1em 2em;
-      margin: 1em;
-      font-size: 1.2rem;
-      cursor: pointer;
+    .shell{
+      width: min(720px, 100%);
+    }
+
+    .card{
+      border-radius: var(--radius);
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--shadow);
+      padding: 28px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    header{
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .logo{
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background:
+        linear-gradient(135deg, rgba(56,189,248,.95), rgba(167,139,250,.85));
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      flex: 0 0 auto;
+    }
+
+    h1{
+      margin: 0;
+      font-size: clamp(20px, 2.3vw, 28px);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+
+    p{
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .grid{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .link{
+      text-decoration: none;
+      display: block;
+    }
+
+    .btn{
       width: 100%;
-      max-width: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 16px 16px;
+      border-radius: 16px;
+      background: var(--btn);
+      border: 1px solid rgba(255,255,255,.14);
+      color: var(--text);
+      cursor: pointer;
+      transition: transform .08s ease, background .18s ease, border-color .18s ease;
+      font-size: 15px;
+      text-align: left;
     }
 
-    @media (max-width: 600px) {
-      body {
-        padding: 1em;
-      }
+    .btn:hover{
+      background: var(--btn-hover);
+      border-color: rgba(255,255,255,.22);
+      transform: translateY(-1px);
+    }
 
-      button {
-        font-size: 1rem;
-        padding: 0.8em 1.5em;
-      }
+    .btn:active{
+      transform: translateY(0px);
+    }
+
+    .btn:focus-visible{
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .btn-title{
+      display: grid;
+      gap: 2px;
+    }
+
+    .btn-title .top{
+      font-weight: 650;
+      letter-spacing: -0.01em;
+    }
+
+    .btn-title .sub{
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .chev{
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.12);
+      flex: 0 0 auto;
+    }
+
+    .foot{
+      margin-top: 16px;
+      color: rgba(255,255,255,.55);
+      font-size: 12px;
+    }
+
+    @media (min-width: 700px){
+      .card{ padding: 34px; }
+      .grid{ gap: 14px; }
+      .btn{ padding: 18px; }
     }
   </style>
 </head>
+
 <body>
-  <h1>Benvenuto al MUSE Shop</h1>
-  <p>Seleziona il negozio:</p>
-  <p>
-    <a href="/internal"><button>MUSE.holiday Besitzer Shop</button></a><br/>
-    <a href="/external"><button>MUSE.holiday Shop for External Owners</button></a>
-  </p>
+  <main class="shell">
+    <section class="card" aria-label="Selezione negozio">
+      <header>
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>Benvenuto al MUSE Shop</h1>
+          <p>Seleziona il negozio da aprire:</p>
+        </div>
+      </header>
+
+      <div class="grid">
+        <a class="link" href="/internal">
+          <div class="btn" role="button" tabindex="0" aria-label="Apri MUSE.holiday Besitzer Shop">
+            <div class="btn-title">
+              <div class="top">MUSE.holiday Besitzer Shop</div>
+              <div class="sub">Accesso riservato ai proprietari (interno)</div>
+            </div>
+            <div class="chev" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+        </a>
+
+        <a class="link" href="/external">
+          <div class="btn" role="button" tabindex="0" aria-label="Apri MUSE.holiday Shop for External Owners">
+            <div class="btn-title">
+              <div class="top">MUSE.holiday Shop for External Owners</div>
+              <div class="sub">Accesso per proprietari esterni / partner</div>
+            </div>
+            <div class="chev" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <div class="foot">Suggerimento: salva questa pagina nei preferiti per un accesso rapido.</div>
+    </section>
+  </main>
 </body>
 </html>
