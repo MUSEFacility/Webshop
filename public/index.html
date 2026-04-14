@@ -1153,27 +1153,6 @@
           <div id="l-schedule-details" style="margin-top:4px;"></div>
         </div>
 
-        <!-- Cleaning quote (Val Gardena / Dolomites only) -->
-        <div id="l-cleaning-wrap" style="display:none">
-          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px; font-size:14px; color:var(--text);">
-            <input type="checkbox" id="l-cleaning-toggle" style="width:18px; height:18px; accent-color:var(--green); cursor:pointer;" />
-            Richiedi anche un preventivo pulizia
-          </label>
-          <div id="l-cleaning-form" class="cleaning-box" style="display:none">
-            <h3>Preventivo Pulizia</h3>
-            <div class="row cols-2" style="margin-bottom:10px">
-              <input id="l-apt-id" type="text" placeholder="ID Appartamento (4–5 caratteri alfanumerici)" maxlength="5" />
-              <input id="l-clean-date" type="date" />
-            </div>
-            <button class="btn-primary" id="l-send-quote" type="button">Richiedi Preventivo</button>
-            <div class="hint" style="margin-top:10px">
-              La richiesta deve essere inviata almeno 72 ore prima della mezzanotte del giorno scelto.<br />
-              Invio richiesta ≠ conferma del servizio. Confermato solo dopo risposta scritta MUSE.holiday.<br />
-              Il prezzo della pulizia NON include biancheria/lavanderia.
-            </div>
-          </div>
-        </div>
-
         <div class="section-title">Prodotti</div>
         <div id="l-products"></div>
 
@@ -1181,7 +1160,6 @@
           <div class="section-title">Carrello</div>
           <div id="l-cart-items"></div>
           <div class="sub">Totale: €<span id="l-total">0.00</span></div>
-          <div class="hint">Per richiedere la pulizia usa il modulo sopra; non è necessario aggiungere prodotti.</div>
           <div style="margin-top:12px">
             <button class="btn-primary" id="l-checkout" type="button" disabled>Invia Ordine</button>
           </div>
@@ -1273,21 +1251,18 @@
      CENTRALIZED CONFIG
   ══════════════════════════════════════════ */
   const CONFIG = {
-    cleaningRegions: ['Val Gardena', 'Dolomites'],
     pickupSchedule: {
       'Dolomites':   { ordine: 'Lunedì ore 10:00',  consegna: 'Mercoledì mattina',       ritiro: 'Mercoledì pomeriggio' },
       'Val Gardena': { ordine: 'Lunedì ore 10:00',  consegna: 'Mercoledì mattina',       ritiro: 'Mercoledì pomeriggio' },
       'South Tyrol': { ordine: 'Martedì ore 10:00', consegna: 'Giovedì mattina',         ritiro: 'Giovedì pomeriggio' },
       'Garda':       { ordine: 'Martedì ore 08:00', consegna: 'Giovedì mattina presto',  ritiro: 'Giovedì pomeriggio' }
     },
-    minCleaningHours: 72,
     apartmentIdPattern: /^[A-Za-z0-9]{4,5}$/,
     repairsRefreshMs: 60000,
     api: {
       catalog:       '/catalog.json',
       verifyPassword:'/api/verify-password',
-      checkout:      '/checkout',
-      cleaningQuote: '/cleaning-quote'
+      checkout:      '/checkout'
     },
     n8n: {
       list: 'https://museholiday.app.n8n.cloud/webhook/repairs-list',
@@ -1715,17 +1690,6 @@
 
   function updateLCleaningVisibility() {
     const region = document.getElementById('l-region').value;
-    const show   = CONFIG.cleaningRegions.includes(region);
-    document.getElementById('l-cleaning-wrap').style.display = show ? 'block' : 'none';
-    if (!show) {
-      document.getElementById('l-cleaning-toggle').checked = false;
-      document.getElementById('l-cleaning-form').style.display = 'none';
-    }
-    if (show) {
-      const hint = new Date(Date.now() + CONFIG.minCleaningHours * 3600 * 1000);
-      document.getElementById('l-clean-date').min =
-        `${hint.getFullYear()}-${String(hint.getMonth()+1).padStart(2,'0')}-${String(hint.getDate()).padStart(2,'0')}`;
-    }
     // Pickup schedule hint
     const sched = CONFIG.pickupSchedule[region];
     const hintEl = document.getElementById('l-schedule-hint');
@@ -1767,10 +1731,6 @@
     updateLCleaningVisibility();
   });
 
-  // Cleaning quote checkbox toggle
-  document.getElementById('l-cleaning-toggle').addEventListener('change', (e) => {
-    document.getElementById('l-cleaning-form').style.display = e.target.checked ? 'block' : 'none';
-  });
 
   // Lavanderia checkout
   let lSubmitting = false;
@@ -1806,38 +1766,6 @@
     lSubmitting = false;
   });
 
-  // Cleaning quote
-  document.getElementById('l-send-quote').addEventListener('click', async () => {
-    const region      = document.getElementById('l-region').value;
-    const name        = document.getElementById('l-name').value.trim();
-    const email       = document.getElementById('l-email').value.trim();
-    const apartmentId = document.getElementById('l-apt-id').value.trim();
-    const dateISO     = document.getElementById('l-clean-date').value;
-
-    if (!CONFIG.cleaningRegions.includes(region)) return showToast('Disponibile solo per ' + CONFIG.cleaningRegions.join(' e ') + '.');
-    if (!CONFIG.apartmentIdPattern.test(apartmentId)) return showToast('ID appartamento non valido (4–5 caratteri alfanumerici).');
-    if (!dateISO) return showToast('Seleziona una data.');
-    if (!name || !email) return showToast('Inserisci nome ed email (usati per la conferma).');
-
-    try {
-      const res = await fetch(CONFIG.api.cleaningQuote, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ region, name, email, apartmentId, dateISO })
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Richiesta inviata! Riceverai conferma via email.');
-        document.getElementById('l-apt-id').value = '';
-        document.getElementById('l-clean-date').value = '';
-        document.getElementById('l-region').value = '';
-        document.getElementById('l-cleaning-wrap').style.display = 'none';
-        lShop.setRegion('');
-      } else {
-        showToast(data.error || 'Errore nella richiesta.');
-      }
-    } catch { showToast('Errore di rete, riprova.'); }
-  });
 
   /* ══════════════════════════════════════════
      RIPARAZIONI TAB
