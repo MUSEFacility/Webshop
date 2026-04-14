@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for muse-webshop on 2025-06-23T14:58:55Z
+# fly.toml app configuration file generated for muse-webshop on 2026-04-14T08:25:56Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -9,7 +9,7 @@ primary_region = 'fra'
 [build]
 
 [http_service]
-  internal_port = 3000
+  internal_port = 8080
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
@@ -17,7 +17,7 @@ primary_region = 'fra'
   processes = ['app']
 
 [[vm]]
-  memory = '512mb'
+  memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 512
+  memory_mb = 1024
