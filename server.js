@@ -1,5 +1,5 @@
 // server.js
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express    = require('express');
 const bodyParser = require('body-parser');
 const nodemailer = require('nodemailer');
@@ -8,8 +8,37 @@ const crypto     = require('crypto');
 
 const app = express();
 
+/* ── HTML-escape helper (prevents XSS in email templates) ── */
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+/* ── Branded email wrapper ── */
+function emailWrap(bodyHtml) {
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#f8f5f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f5f0;padding:24px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.06);">
+  <tr><td style="background:#2d5016;padding:20px 28px;">
+    <span style="color:#ffffff;font-size:20px;font-weight:600;letter-spacing:0.04em;">MUSE</span>
+    <span style="color:rgba(255,255,255,.7);font-size:13px;margin-left:8px;">.holiday</span>
+  </td></tr>
+  <tr><td style="padding:28px 28px 24px;">${bodyHtml}</td></tr>
+  <tr><td style="padding:16px 28px 20px;border-top:1px solid #e8e3dc;font-size:11px;color:#a09888;line-height:1.6;">
+    MUSE.holiday &mdash; Biancheria, pulizie e gestione appartamenti<br/>
+    Questa email è stata generata automaticamente. Non rispondere a questo indirizzo.
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
+}
+
 /* ────────────────────────── DOMAIN REDIRECTS ──────────────────────────
-   Allow the Fly domain for testing, still force www → apex, and don’t
+   Allow the Fly domain for testing, still force www → apex, and don't
    interfere with ACME TLS validation. Put this BEFORE other routes. */
 app.use((req, res, next) => {
   const host = (req.headers['x-forwarded-host'] || req.hostname || '').toLowerCase();
@@ -17,7 +46,7 @@ app.use((req, res, next) => {
   // Let Fly *.fly.dev work during setup
   if (host.endsWith('.fly.dev')) return next();
 
-  // Don’t break TLS issuance checks
+  // Don't break TLS issuance checks
   if (req.path.startsWith('/.well-known/acme-challenge')) return next();
 
   // Keep canonical redirect for your own domain (www → apex)
@@ -92,6 +121,12 @@ app.post('/internal', (req, res) => {
   }
 });
 
+// Password verification for SPA
+app.post('/api/verify-password', (req, res) => {
+  const entered = req.body.password;
+  res.json({ ok: entered === process.env.INTERNAL_PW });
+});
+
 // External shop
 app.get('/external', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'external.html'));
@@ -105,22 +140,30 @@ app.post('/checkout', async (req, res) => {
 
     let total = 0;
     let summaryHtml = `
-      <h2>Nuovo ordine da ${name}</h2>
-      <p><strong>Regione:</strong> ${region}</p>
-      <p><em>Prezzi sempre mostrati IVA esclusa.</em></p>
-      <ul>`;
+      <h2 style="margin:0 0 8px;font-size:20px;color:#2d5016;">Nuovo ordine</h2>
+      <p style="margin:0 0 4px;color:#666;font-size:14px;">Da: <strong>${esc(name)}</strong> &mdash; ${esc(region)}</p>
+      <p style="margin:0 0 16px;color:#999;font-size:12px;font-style:italic;">Prezzi IVA esclusa</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">`;
     cart.forEach(item => {
       const price = Number(item.price) || 0;
-      summaryHtml += `<li>${item.title} × ${item.qty} @ €${price.toFixed(2)}</li>`;
+      const desc = item.description ? `<br/><span style="color:#999;font-size:12px;">${esc(item.description)}</span>` : '';
+      const lineTotal = (Number(item.qty) || 0) * price;
+      summaryHtml += `<tr style="border-bottom:1px solid #f0ebe4;">
+        <td style="padding:10px 0;">${esc(item.title)}${desc}</td>
+        <td style="padding:10px 8px;text-align:center;color:#666;">×${Number(item.qty)||0}</td>
+        <td style="padding:10px 0;text-align:right;font-weight:600;">€${lineTotal.toFixed(2)}</td></tr>`;
       total += item.qty * price;
     });
-    summaryHtml += `
-      </ul>
-      <p><strong>Totale: €${total.toFixed(2)}</strong></p>
-      <p><em>Pagamento: nessuno richiesto ora – verrà fatturato.</em></p>
-      <hr/>
-      <p><strong>Nome cliente:</strong> ${name}</p>
-      <p><strong>Email cliente:</strong> ${email}</p>`;
+    summaryHtml += `</table>
+      <div style="margin:16px 0;padding:12px 16px;background:#f8f5f0;border-radius:8px;text-align:right;">
+        <span style="font-size:13px;color:#666;">Totale:</span>
+        <strong style="font-size:20px;color:#2d5016;margin-left:8px;">€${total.toFixed(2)}</strong>
+      </div>
+      <p style="font-size:12px;color:#999;margin:0;">Pagamento: nessuno richiesto ora – verrà fatturato.</p>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #f0ebe4;font-size:13px;color:#666;">
+        <strong>Cliente:</strong> ${esc(name)}<br/>
+        <strong>Email:</strong> ${esc(email)}
+      </div>`;
 
     const ccByRegion = {
       Dolomites:     'info@muse.holiday',
@@ -135,14 +178,14 @@ app.post('/checkout', async (req, res) => {
       to:      process.env.SHOP_EMAIL,
       cc:      ccAddress,
       subject: `Ordine ricevuto: ${name}`,
-      html:    summaryHtml
+      html:    emailWrap(summaryHtml)
     });
 
     await transporter.sendMail({
       from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
       to:      email,
       subject: `Conferma ordine €${total.toFixed(2)}`,
-      html:    summaryHtml
+      html:    emailWrap(summaryHtml)
     });
 
     res.json({ success: true });
@@ -164,8 +207,8 @@ app.post('/cleaning-quote', async (req, res) => {
     const { region, name, email, apartmentId, dateISO } = req.body;
 
     // Eligibility: region Val Gardena — we trust caller page, enforce region here
-    if (region !== 'Val Gardena') {
-      return res.status(400).json({ success: false, error: 'Disponibile solo per Val Gardena.' });
+    if (region !== 'Val Gardena' && region !== 'Dolomites') {
+      return res.status(400).json({ success: false, error: 'Disponibile solo per Val Gardena e Dolomites.' });
     }
 
     // ID 4–5 alphanumeric
@@ -193,12 +236,14 @@ app.post('/cleaning-quote', async (req, res) => {
 
     // Email owner (you)
     const ownerHtml = `
-      <h2>Nuova richiesta preventivo pulizia (Val Gardena)</h2>
-      <p><strong>Cliente:</strong> ${name} &lt;${email}&gt;</p>
-      <p><strong>Appartamento:</strong> ${apartmentId}</p>
-      <p><strong>Data richiesta pulizia:</strong> ${dateISO}</p>
-      <p>Apri per <strong>Accettare</strong> o <strong>Rifiutare</strong> e inserire il prezzo:</p>
-      <p><a href="${decisionURL}">${decisionURL}</a></p>
+      <h2 style="margin:0 0 16px;font-size:20px;color:#2d5016;">Nuova richiesta preventivo pulizia</h2>
+      <div style="background:#f8f5f0;border-radius:8px;padding:14px 16px;margin-bottom:16px;font-size:14px;line-height:1.8;">
+        <strong>Cliente:</strong> ${esc(name)} &lt;${esc(email)}&gt;<br/>
+        <strong>Appartamento:</strong> ${esc(apartmentId)}<br/>
+        <strong>Data pulizia:</strong> ${esc(dateISO)}
+      </div>
+      <p style="font-size:14px;">Apri per <strong>Accettare</strong> o <strong>Rifiutare</strong> e inserire il prezzo:</p>
+      <p><a href="${decisionURL}" style="display:inline-block;padding:10px 24px;background:#2d5016;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">Gestisci richiesta &rarr;</a></p>
     `;
 
     // Send emails in background so API can return quickly
@@ -209,7 +254,7 @@ app.post('/cleaning-quote', async (req, res) => {
           to:   process.env.SHOP_EMAIL,
           cc:   'info@muse.holiday',
           subject: `Richiesta preventivo pulizia — ${name} (${apartmentId})`,
-          html: ownerHtml
+          html: emailWrap(ownerHtml)
         });
       } catch (e) {
         console.error('Background email error (owner /cleaning-quote):', e);
@@ -217,19 +262,23 @@ app.post('/cleaning-quote', async (req, res) => {
 
       // Email requester (with disclaimers incl. linen not included)
       const clientHtml = `
-        <h2>Richiesta preventivo inviata</h2>
-        <p>Grazie ${name}, abbiamo ricevuto la tua richiesta per la pulizia dell'appartamento
-        <strong>${apartmentId}</strong> il giorno <strong>${dateISO}</strong>.</p>
-        <p><strong>Importante:</strong> questa è <em>solo</em> una richiesta; la pulizia verrà programmata
-        esclusivamente dopo una <strong>conferma scritta da MUSE.holiday</strong>.</p>
-        <p style="color:#b00020"><strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia.</p>
+        <h2 style="margin:0 0 12px;font-size:20px;color:#2d5016;">Richiesta preventivo inviata</h2>
+        <p style="font-size:14px;line-height:1.6;">Grazie <strong>${esc(name)}</strong>, abbiamo ricevuto la tua richiesta per la pulizia dell'appartamento
+        <strong>${esc(apartmentId)}</strong> il giorno <strong>${esc(dateISO)}</strong>.</p>
+        <div style="background:#fef6e0;border-left:4px solid #e2a300;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0;font-size:13px;line-height:1.6;">
+          <strong>Importante:</strong> questa è solo una richiesta. La pulizia verrà programmata
+          esclusivamente dopo una <strong>conferma scritta</strong> da MUSE.holiday.
+        </div>
+        <div style="background:#fef5f5;border-left:4px solid #b00020;padding:12px 16px;border-radius:0 8px 8px 0;font-size:13px;line-height:1.6;">
+          <strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia.
+        </div>
       `;
       try {
         await transporter.sendMail({
           from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
           to:   email,
           subject: `Richiesta preventivo pulizia ricevuta — ${apartmentId} (${dateISO})`,
-          html: clientHtml
+          html: emailWrap(clientHtml)
         });
       } catch (e) {
         console.error('Background email error (client /cleaning-quote):', e);
@@ -269,10 +318,10 @@ app.get('/quote/decision', (req, res) => {
       </head><body>
         <h2>Decisione Preventivo Pulizia</h2>
         <div class="meta">
-          <div><strong>Cliente:</strong> ${data.name} &lt;${data.email}&gt;</div>
-          <div><strong>Appartamento:</strong> ${data.apartmentId}</div>
-          <div><strong>Data pulizia richiesta:</strong> ${data.dateISO}</div>
-          <div><strong>Regione:</strong> ${data.region}</div>
+          <div><strong>Cliente:</strong> ${esc(data.name)} &lt;${esc(data.email)}&gt;</div>
+          <div><strong>Appartamento:</strong> ${esc(data.apartmentId)}</div>
+          <div><strong>Data pulizia richiesta:</strong> ${esc(data.dateISO)}</div>
+          <div><strong>Regione:</strong> ${esc(data.region)}</div>
         </div>
 
         <form method="POST" action="/quote/decision">
@@ -307,33 +356,41 @@ app.post('/quote/decision', async (req, res) => {
 
     if (action === 'accept') {
       const html = `
-        <h2>Preventivo accettato</h2>
-        <p>Ciao ${data.name}, la tua richiesta per la pulizia dell'appartamento <strong>${data.apartmentId}</strong>
-        in data <strong>${data.dateISO}</strong> è stata <strong>ACCETTATA</strong>.</p>
-        <p><strong>Prezzo:</strong> €${price.toFixed(2)} (IVA esclusa, salvo diverse indicazioni)</p>
-        <p style="color:#b00020"><strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia.</p>
-        <p>Questa email costituisce <strong>conferma scritta</strong> della prenotazione.</p>
+        <div style="background:#f4faf6;border-left:4px solid #1f6640;padding:14px 16px;border-radius:0 8px 8px 0;margin-bottom:16px;">
+          <h2 style="margin:0 0 8px;font-size:20px;color:#1f6640;">Preventivo accettato ✓</h2>
+          <p style="margin:0;font-size:14px;">Appartamento <strong>${esc(data.apartmentId)}</strong> &mdash; ${esc(data.dateISO)}</p>
+        </div>
+        <p style="font-size:14px;line-height:1.6;">Ciao <strong>${esc(data.name)}</strong>, la tua richiesta è stata <strong>ACCETTATA</strong>.</p>
+        <div style="background:#f8f5f0;border-radius:8px;padding:14px 16px;margin:16px 0;text-align:center;">
+          <span style="font-size:13px;color:#666;">Prezzo:</span>
+          <strong style="font-size:24px;color:#2d5016;margin-left:8px;">€${price.toFixed(2)}</strong>
+          <span style="font-size:12px;color:#999;display:block;margin-top:4px;">IVA esclusa</span>
+        </div>
+        <div style="background:#fef5f5;border-left:4px solid #b00020;padding:12px 16px;border-radius:0 8px 8px 0;font-size:13px;margin:16px 0;">
+          <strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia.
+        </div>
+        <p style="font-size:13px;color:#666;">Questa email costituisce <strong>conferma scritta</strong> della prenotazione.</p>
       `;
       await transporter.sendMail({
         from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
         to:   data.email,
         subject: `Preventivo pulizia ACCETTATO — ${data.apartmentId} (${data.dateISO})`,
-        html
+        html: emailWrap(html)
       });
     } else {
       const html = `
-        <h2>Preventivo rifiutato</h2>
-        <p>Ciao ${data.name}, la tua richiesta per la pulizia dell'appartamento <strong>${data.apartmentId}</strong>
-        in data <strong>${data.dateISO}</strong> è stata <strong>RIFIUTATA</strong>.</p>
-        <p><em>Nota:</em> l’invio della richiesta non implica conferma del servizio.</p>
-        <p style="color:#b00020"><strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia.</p>
-        <p>Se vuoi, invia una nuova richiesta con un'altra data.</p>
+        <div style="background:#fef5f5;border-left:4px solid #9b2626;padding:14px 16px;border-radius:0 8px 8px 0;margin-bottom:16px;">
+          <h2 style="margin:0 0 8px;font-size:20px;color:#9b2626;">Preventivo rifiutato</h2>
+          <p style="margin:0;font-size:14px;">Appartamento <strong>${esc(data.apartmentId)}</strong> &mdash; ${esc(data.dateISO)}</p>
+        </div>
+        <p style="font-size:14px;line-height:1.6;">Ciao <strong>${esc(data.name)}</strong>, la tua richiesta è stata <strong>RIFIUTATA</strong>.</p>
+        <p style="font-size:13px;color:#666;line-height:1.6;">L'invio della richiesta non implica conferma del servizio. Se vuoi, invia una nuova richiesta con un'altra data.</p>
       `;
       await transporter.sendMail({
         from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
         to:   data.email,
         subject: `Preventivo pulizia RIFIUTATO — ${data.apartmentId} (${data.dateISO})`,
-        html
+        html: emailWrap(html)
       });
     }
 
@@ -342,8 +399,8 @@ app.post('/quote/decision', async (req, res) => {
       from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
       to:   process.env.SHOP_EMAIL,
       subject: `Decisione inviata — ${String(action).toUpperCase()} — ${data.apartmentId} (${data.dateISO})`,
-      html: `<p>Decisione: <strong>${action}</strong> ${price ? `— Prezzo €${price.toFixed(2)}` : ''}<br/>
-             Cliente: ${data.name} &lt;${data.email}&gt;</p>`
+      html: emailWrap(`<p>Decisione: <strong>${esc(action)}</strong> ${price ? `— Prezzo €${price.toFixed(2)}` : ''}<br/>
+             Cliente: ${esc(data.name)} &lt;${esc(data.email)}&gt;</p>`)
     });
 
     res.send('Decisione inviata con successo. Puoi chiudere questa pagina.');
@@ -367,22 +424,30 @@ function previewsEnabled(res) {
 function renderOrderEmail({ name, email, region, cart }) {
   let total = 0;
   let summaryHtml = `
-    <h2>Nuovo ordine da ${name}</h2>
-    <p><strong>Regione:</strong> ${region}</p>
-    <p><em>Prezzi sempre mostrati IVA esclusa.</em></p>
-    <ul>`;
+    <h2 style="margin:0 0 8px;font-size:20px;color:#2d5016;">Nuovo ordine</h2>
+    <p style="margin:0 0 4px;color:#666;font-size:14px;">Da: <strong>${esc(name)}</strong> &mdash; ${esc(region)}</p>
+    <p style="margin:0 0 16px;color:#999;font-size:12px;font-style:italic;">Prezzi IVA esclusa</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">`;
   cart.forEach(item => {
     const price = Number(item.price) || 0;
+    const desc = item.description ? `<br/><span style="color:#999;font-size:12px;">${esc(item.description)}</span>` : '';
+    const lineTotal = (Number(item.qty) || 0) * price;
+    summaryHtml += `<tr style="border-bottom:1px solid #f0ebe4;">
+      <td style="padding:10px 0;">${esc(item.title)}${desc}</td>
+      <td style="padding:10px 8px;text-align:center;color:#666;">×${Number(item.qty)||0}</td>
+      <td style="padding:10px 0;text-align:right;font-weight:600;">€${lineTotal.toFixed(2)}</td></tr>`;
     total += item.qty * price;
-    summaryHtml += `<li>${item.title} × ${item.qty} @ €${price.toFixed(2)}</li>`;
   });
-  summaryHtml += `
-    </ul>
-    <p><strong>Totale: €${total.toFixed(2)}</strong></p>
-    <p><em>Pagamento: nessuno richiesto ora – verrà fatturato.</em></p>
-    <hr/>
-    <p><strong>Nome cliente:</strong> ${name}</p>
-    <p><strong>Email cliente:</strong> ${email}</p>`;
+  summaryHtml += `</table>
+    <div style="margin:16px 0;padding:12px 16px;background:#f8f5f0;border-radius:8px;text-align:right;">
+      <span style="font-size:13px;color:#666;">Totale:</span>
+      <strong style="font-size:20px;color:#2d5016;margin-left:8px;">€${total.toFixed(2)}</strong>
+    </div>
+    <p style="font-size:12px;color:#999;margin:0;">Pagamento: nessuno richiesto ora – verrà fatturato.</p>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #f0ebe4;font-size:13px;color:#666;">
+      <strong>Cliente:</strong> ${esc(name)}<br/>
+      <strong>Email:</strong> ${esc(email)}
+    </div>`;
   return summaryHtml;
 }
 
@@ -406,7 +471,7 @@ app.get('/debug/preview/order', (req, res) => {
   }
 
   const html = renderOrderEmail({ name, email, region, cart });
-  res.set('Content-Type','text/html; charset=utf-8').send(html);
+  res.set('Content-Type','text/html; charset=utf-8').send(emailWrap(html));
 });
 
 // CLEANING: owner email preview (includes decision link)
@@ -420,71 +485,78 @@ app.get('/debug/preview/cleaning-owner', (req, res) => {
   const link   = req.query.link   || `${(process.env.APP_BASE_URL || 'https://musevision.it')}/quote/decision?token=TEST_TOKEN`;
 
   const html = `
-    <h2>Nuova richiesta preventivo pulizia (Val Gardena)</h2>
-    <p><strong>Cliente:</strong> ${name} &lt;${email}&gt;</p>
-    <p><strong>Appartamento:</strong> ${apt}</p>
-    <p><strong>Data richiesta pulizia:</strong> ${date}</p>
-    <p>Apri per <strong>Accettare</strong> o <strong>Rifiutare</strong> e inserire il prezzo:</p>
-    <p><a href="${link}">${link}</a></p>
-  `;
-  res.set('Content-Type','text/html; charset=utf-8').send(html);
+    <h2 style="margin:0 0 16px;font-size:20px;color:#2d5016;">Nuova richiesta preventivo pulizia</h2>
+    <div style="background:#f8f5f0;border-radius:8px;padding:14px 16px;margin-bottom:16px;font-size:14px;line-height:1.8;">
+      <strong>Cliente:</strong> ${esc(name)} &lt;${esc(email)}&gt;<br/>
+      <strong>Appartamento:</strong> ${esc(apt)}<br/>
+      <strong>Data pulizia:</strong> ${esc(date)}
+    </div>
+    <p style="font-size:14px;">Apri per <strong>Accettare</strong> o <strong>Rifiutare</strong> e inserire il prezzo:</p>
+    <p><a href="${link}" style="display:inline-block;padding:10px 24px;background:#2d5016;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">Gestisci richiesta &rarr;</a></p>`;
+  res.set('Content-Type','text/html; charset=utf-8').send(emailWrap(html));
 });
 
-// CLEANING: client acknowledgement preview (request ≠ confirmation)
+// CLEANING: client acknowledgement preview
 app.get('/debug/preview/cleaning-client', (req, res) => {
   if (!previewsEnabled(res)) return;
-
   const name = req.query.name || 'Mario Rossi';
   const apt  = req.query.apt  || '1234A';
   const date = req.query.date || '2025-11-05';
-
   const html = `
-    <h2>Richiesta preventivo inviata</h2>
-    <p>Grazie ${name}, abbiamo ricevuto la tua richiesta per la pulizia dell'appartamento
-    <strong>${apt}</strong> il giorno <strong>${date}</strong>.</p>
-    <p><strong>Importante:</strong> questa è <em>solo</em> una richiesta; la pulizia verrà programmata
-    esclusivamente dopo una <strong>conferma scritta da MUSE.holiday</strong>.</p>
-    <p>Riceverai una risposta con accettazione o rifiuto (ed eventuale prezzo) appena possibile.</p>
-  `;
-  res.set('Content-Type','text/html; charset=utf-8').send(html);
+    <h2 style="margin:0 0 12px;font-size:20px;color:#2d5016;">Richiesta preventivo inviata</h2>
+    <p style="font-size:14px;line-height:1.6;">Grazie <strong>${esc(name)}</strong>, abbiamo ricevuto la tua richiesta per la pulizia
+    dell'appartamento <strong>${esc(apt)}</strong> il giorno <strong>${esc(date)}</strong>.</p>
+    <div style="background:#fef6e0;border-left:4px solid #e2a300;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0;font-size:13px;">
+      <strong>Importante:</strong> questa è solo una richiesta. Conferma solo dopo risposta scritta MUSE.holiday.
+    </div>`;
+  res.set('Content-Type','text/html; charset=utf-8').send(emailWrap(html));
 });
 
 // CLEANING: acceptance email preview
 app.get('/debug/preview/decision-accept', (req, res) => {
   if (!previewsEnabled(res)) return;
-
   const name  = req.query.name  || 'Mario Rossi';
   const apt   = req.query.apt   || '1234A';
   const date  = req.query.date  || '2025-11-05';
   const price = Number(req.query.price || '80');
-
   const html = `
-    <h2>Preventivo accettato</h2>
-    <p>Ciao ${name}, la tua richiesta per la pulizia dell'appartamento <strong>${apt}</strong>
-    in data <strong>${date}</strong> è stata <strong>ACCETTATA</strong>.</p>
-    <p><strong>Prezzo:</strong> €${price.toFixed(2)} (IVA esclusa, salvo diverse indicazioni)</p>
-    <p>Questa email costituisce <strong>conferma scritta</strong> della prenotazione.</p>
-  `;
-  res.set('Content-Type','text/html; charset=utf-8').send(html);
+    <div style="background:#f4faf6;border-left:4px solid #1f6640;padding:14px 16px;border-radius:0 8px 8px 0;margin-bottom:16px;">
+      <h2 style="margin:0 0 8px;font-size:20px;color:#1f6640;">Preventivo accettato ✓</h2>
+      <p style="margin:0;font-size:14px;">Appartamento <strong>${esc(apt)}</strong> &mdash; ${esc(date)}</p>
+    </div>
+    <p style="font-size:14px;">Ciao <strong>${esc(name)}</strong>, la tua richiesta è stata <strong>ACCETTATA</strong>.</p>
+    <div style="background:#f8f5f0;border-radius:8px;padding:14px 16px;margin:16px 0;text-align:center;">
+      <span style="font-size:13px;color:#666;">Prezzo:</span>
+      <strong style="font-size:24px;color:#2d5016;margin-left:8px;">€${price.toFixed(2)}</strong>
+    </div>
+    <p style="font-size:13px;color:#666;">Questa email costituisce conferma scritta della prenotazione.</p>`;
+  res.set('Content-Type','text/html; charset=utf-8').send(emailWrap(html));
 });
 
 // CLEANING: denial email preview
 app.get('/debug/preview/decision-deny', (req, res) => {
   if (!previewsEnabled(res)) return;
-
   const name = req.query.name || 'Mario Rossi';
   const apt  = req.query.apt  || '1234A';
   const date = req.query.date || '2025-11-05';
-
   const html = `
-    <h2>Preventivo rifiutato</h2>
-    <p>Ciao ${name}, la tua richiesta per la pulizia dell'appartamento <strong>${apt}</strong>
-    in data <strong>${date}</strong> è stata <strong>RIFIUTATA</strong>.</p>
-    <p><em>Nota:</em> l’invio della richiesta non implica conferma del servizio.</p>
-    <p>Se vuoi, invia una nuova richiesta con un'altra data.</p>
-  `;
-  res.set('Content-Type','text/html; charset=utf-8').send(html);
+    <div style="background:#fef5f5;border-left:4px solid #9b2626;padding:14px 16px;border-radius:0 8px 8px 0;margin-bottom:16px;">
+      <h2 style="margin:0 0 8px;font-size:20px;color:#9b2626;">Preventivo rifiutato</h2>
+      <p style="margin:0;font-size:14px;">Appartamento <strong>${esc(apt)}</strong> &mdash; ${esc(date)}</p>
+    </div>
+    <p style="font-size:14px;">Ciao <strong>${esc(name)}</strong>, la tua richiesta è stata rifiutata.</p>
+    <p style="font-size:13px;color:#666;">Se vuoi, invia una nuova richiesta con un'altra data.</p>`;
+  res.set('Content-Type','text/html; charset=utf-8').send(emailWrap(html));
 });
+
+/* ─────────────────────────── STARTUP VALIDATION ───────────────────────── */
+if (!process.env.INTERNAL_PW) {
+  console.error('FATAL: INTERNAL_PW is not set in .env — server cannot verify passwords.');
+  process.exit(1);
+}
+if ((process.env.QUOTE_SIGNING_SECRET || 'CHANGE_ME') === 'CHANGE_ME') {
+  console.warn('WARNING: QUOTE_SIGNING_SECRET is using the default value. Set a strong secret in .env for production.');
+}
 
 /* ─────────────────────────── START SERVER ───────────────────────────── */
 const PORT = process.env.PORT || 3000;
