@@ -159,6 +159,29 @@
     .tab-btn { position: relative; }
     .tab-btn .nav-short { display: none; }
 
+    .nav-auth {
+      margin-left: auto;
+      padding: 6px 12px;
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .2s ease, color .2s ease, border-color .2s ease;
+    }
+    .nav-auth:hover { color: var(--text); border-color: var(--text); }
+    .nav-auth.is-muse {
+      color: var(--green);
+      border-color: var(--green);
+      background: rgba(45, 80, 22, 0.06);
+    }
+    .nav-auth.is-muse:hover { background: rgba(45, 80, 22, 0.12); }
+
     @media (max-width: 500px) {
       .tab-btn { padding: 13px 8px; font-size: 11px; }
       .tab-btn .nav-full { display: none; }
@@ -1058,6 +1081,8 @@
       <button class="tab-btn" data-tab="prodotti" type="button"><span class="nav-full">Prodotti</span><span class="nav-short">🛍️</span></button>
       <button class="tab-btn" data-tab="pulizie" type="button"><span class="nav-full">Lavanderia & Pulizie</span><span class="nav-short">🧺</span><span id="l-cart-badge" class="tab-badge"></span></button>
       <button class="tab-btn" id="tab-btn-riparazioni" data-tab="riparazioni" type="button" style="display:none"><span class="nav-full">Riparazioni</span><span class="nav-short">🔧</span></button>
+      <button class="tab-btn" id="tab-btn-noleggio" data-tab="noleggio" type="button" style="display:none"><span class="nav-full">Noleggio</span><span class="nav-short">🔑</span></button>
+      <button class="nav-auth" id="nav-auth-btn" type="button" aria-label="MUSE login">Accedi MUSE</button>
     </div>
   </nav>
 
@@ -1084,6 +1109,11 @@
           <button class="home-card home-card--muted" onclick="switchTab('prodotti')">
             <div class="home-card-icon">🛍️</div>
             <div class="home-card-title">Prodotti</div>
+            <div class="home-card-sub">Prossimamente</div>
+          </button>
+          <button class="home-card home-card--muted" id="hc-noleggio" style="display:none" onclick="switchTab('noleggio')">
+            <div class="home-card-icon">🔑</div>
+            <div class="home-card-title">Noleggio</div>
             <div class="home-card-sub">Prossimamente</div>
           </button>
         </div>
@@ -1153,6 +1183,36 @@
           <div id="l-schedule-details" style="margin-top:4px;"></div>
         </div>
 
+        <!-- Cleaning quote request (MUSE + Val Gardena only) -->
+        <div id="l-vg-toggle" style="display:none; margin-bottom:12px; padding:12px 16px; background:var(--card); border:1px solid var(--field-border); border-radius:8px;">
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin:0; font-size:14px; color:var(--text);">
+            <input type="checkbox" id="l-cleaning-drawer" style="width:16px; height:16px; cursor:pointer;" />
+            Richiedi preventivo per la pulizia appartamento (Val Gardena)
+          </label>
+        </div>
+
+        <div id="l-vg-quote" style="display:none; margin-bottom:16px; padding:16px; background:var(--card); border:1px solid var(--field-border); border-radius:8px;">
+          <div style="font-family:var(--serif); font-size:16px; color:var(--text); margin-bottom:12px;">Richiedi Preventivo Pulizia (Val Gardena)</div>
+          <div class="row cols-2">
+            <div>
+              <label for="l-apt-id">ID Appartamento</label>
+              <input id="l-apt-id" type="text" placeholder="4–5 caratteri alfanumerici" maxlength="5" />
+            </div>
+            <div>
+              <label for="l-clean-date">Data pulizia</label>
+              <input id="l-clean-date" type="date" />
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <button class="btn-primary" id="l-send-quote" type="button">Richiedi Preventivo</button>
+          </div>
+          <div style="margin-top:10px; font-size:12px; color:var(--muted); line-height:1.55;">
+            La richiesta deve essere inviata almeno 72 ore prima della mezzanotte del giorno scelto.<br/>
+            L'invio della richiesta non è conferma del servizio. La pulizia verrà programmata solo dopo una conferma scritta da MUSE.holiday.<br/>
+            Il prezzo della pulizia NON include biancheria/lavanderia.
+          </div>
+        </div>
+
         <div class="section-title">Prodotti</div>
         <div id="l-products"></div>
 
@@ -1186,6 +1246,26 @@
       </div>
 
       <div id="r-list" class="repairs-list"></div>
+    </section>
+
+    <!-- ══ TAB 4: NOLEGGIO ══ -->
+    <section id="tab-noleggio" class="tab-section" aria-label="Noleggio">
+      <div class="card">
+        <div class="page-header">
+          <img src="logo.png" alt="MUSE Logo" class="logo-img" />
+          <div>
+            <h1>MUSE Shop – Noleggio</h1>
+            <div class="sub">Prossimamente disponibile.</div>
+          </div>
+        </div>
+        <div style="padding: 48px 24px; text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">🔑</div>
+          <div style="font-family: var(--serif); font-size: 22px; color: var(--text); margin-bottom: 8px;">Prossimamente</div>
+          <div style="color: var(--muted); font-size: 14px; max-width: 360px; margin: 0 auto; line-height: 1.6;">
+            Il servizio di noleggio MUSE sarà disponibile a breve.
+          </div>
+        </div>
+      </div>
     </section>
 
   </div><!-- /shell -->
@@ -1519,6 +1599,20 @@
     document.getElementById('l-tier-toggle-btn').textContent = active ? 'Torna a prezzi standard' : 'Accedi come MUSE Besitzer';
     // Hide the entire tier bar for MUSE owners — it's an upgrade, no need to show toggle
     document.querySelector('.tier-bar').style.display = active ? 'none' : '';
+    // Noleggio is MUSE-only: show nav button + home card when active, hide otherwise
+    const noleggioBtn = document.getElementById('tab-btn-noleggio');
+    const noleggioCard = document.getElementById('hc-noleggio');
+    if (noleggioBtn)  noleggioBtn.style.display  = active ? '' : 'none';
+    if (noleggioCard) noleggioCard.style.display = active ? '' : 'none';
+    // If user downgrades while on the Noleggio tab, bounce back home
+    if (!active && activeTab === 'noleggio') switchTab('home');
+    // Update the persistent MUSE login/logout button in the top nav
+    const navAuthBtn = document.getElementById('nav-auth-btn');
+    if (navAuthBtn) {
+      navAuthBtn.textContent = active ? 'MUSE ✓' : 'Accedi MUSE';
+      navAuthBtn.classList.toggle('is-muse', active);
+      navAuthBtn.setAttribute('aria-label', active ? 'Esci da MUSE' : 'Accedi come MUSE Besitzer');
+    }
     // Swap NOME label/placeholder for MUSE owners
     const nameLabel = document.querySelector('label[for="l-name"]');
     const nameInput = document.getElementById('l-name');
@@ -1530,6 +1624,8 @@
       nameInput.placeholder = 'Il tuo nome';
     }
     updateLRegions();
+    // Re-evaluate preventivo visibility when tier changes
+    if (typeof updateLCleaningVisibility === 'function') updateLCleaningVisibility();
   }
 
   /* ══════════════════════════════════════════
@@ -1702,6 +1798,23 @@
     } else {
       hintEl.style.display = 'none';
     }
+    // Preventivo (cleaning quote) toggle — MUSE + Val Gardena only
+    const isVG = region === 'Val Gardena';
+    const toggleEl  = document.getElementById('l-vg-toggle');
+    const quoteBox  = document.getElementById('l-vg-quote');
+    const drawerEl  = document.getElementById('l-cleaning-drawer');
+    const dateEl    = document.getElementById('l-clean-date');
+    const showToggle = isVG && isMuseTier;
+    toggleEl.style.display = showToggle ? 'block' : 'none';
+    quoteBox.style.display = (showToggle && drawerEl.checked) ? 'block' : 'none';
+    if (showToggle && dateEl && !dateEl.min) {
+      // Set min date to today + 72h + 1 day (server enforces exact rule)
+      const hint = new Date(Date.now() + (72 + 24) * 60 * 60 * 1000);
+      const yyyy = hint.getFullYear();
+      const mm   = String(hint.getMonth() + 1).padStart(2, '0');
+      const dd   = String(hint.getDate()).padStart(2, '0');
+      dateEl.min = `${yyyy}-${mm}-${dd}`;
+    }
   }
 
   lTierToggleBtn.addEventListener('click', () => {
@@ -1712,6 +1825,24 @@
       showToast('Prezzi MUSE Besitzer attivati.');
     });
   });
+
+  // Persistent MUSE login/logout button in the top nav
+  const navAuthBtn = document.getElementById('nav-auth-btn');
+  if (navAuthBtn) {
+    navAuthBtn.addEventListener('click', () => {
+      if (isMuseTier) {
+        setMuseTier(false);
+        localStorage.setItem('museAccess', 'external');
+        showToast('Disconnesso da MUSE.');
+        return;
+      }
+      openPwModal(() => {
+        localStorage.setItem('museAccess', 'muse');
+        setMuseTier(true);
+        showToast('Accesso MUSE attivato.');
+      });
+    });
+  }
 
   const lShop = makeShop({
     prefix: 'l',
@@ -1729,6 +1860,46 @@
     const r = document.getElementById('l-region').value;
     if (r) localStorage.setItem('museRegion', r);
     updateLCleaningVisibility();
+  });
+
+  // Preventivo drawer toggle (expand/collapse the form)
+  document.getElementById('l-cleaning-drawer').addEventListener('change', updateLCleaningVisibility);
+
+  // Preventivo send button — POST /cleaning-quote (auth cookie is sent automatically)
+  document.getElementById('l-send-quote').addEventListener('click', async () => {
+    const region = document.getElementById('l-region').value;
+    const name   = document.getElementById('l-name').value.trim();
+    const email  = document.getElementById('l-email').value.trim();
+    const apartmentId = document.getElementById('l-apt-id').value.trim();
+    const dateISO     = document.getElementById('l-clean-date').value;
+
+    if (region !== 'Val Gardena') return showToast('Disponibile solo per Val Gardena.');
+    if (!CONFIG.apartmentIdPattern.test(apartmentId)) return showToast('ID appartamento non valido (4–5 caratteri).');
+    if (!dateISO) return showToast('Seleziona una data.');
+    if (!name || !email) return showToast('Inserisci nome ed email (usati per la conferma).');
+
+    const btn = document.getElementById('l-send-quote');
+    btn.disabled = true; btn.textContent = 'Invio in corso…';
+    try {
+      const res = await fetch('/cleaning-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ region, name, email, apartmentId, dateISO })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Richiesta inviata! Riceverai conferma via email (richiesta ≠ conferma).');
+        document.getElementById('l-apt-id').value = '';
+        document.getElementById('l-clean-date').value = '';
+        document.getElementById('l-cleaning-drawer').checked = false;
+        updateLCleaningVisibility();
+      } else {
+        showToast(data.error || 'Errore nella richiesta.');
+      }
+    } catch {
+      showToast('Errore di rete, riprova.');
+    }
+    btn.disabled = false; btn.textContent = 'Richiedi Preventivo';
   });
 
 

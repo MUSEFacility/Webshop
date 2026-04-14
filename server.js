@@ -87,6 +87,38 @@ function verifyToken(token) {
   return JSON.parse(Buffer.from(data, 'base64url').toString());
 }
 
+// Read a single cookie value from the request (avoids adding cookie-parser dep)
+function readCookie(req, name) {
+  const raw = req.headers.cookie || '';
+  const match = raw.split(';').map(s => s.trim()).find(s => s.startsWith(name + '='));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+}
+
+// Build the Set-Cookie header value for the MUSE auth cookie
+const MUSE_AUTH_TTL_MS = 12 * 60 * 60 * 1000; // 12h
+function buildMuseAuthCookie(req) {
+  const token = signToken({ type: 'muse-auth', exp: Date.now() + MUSE_AUTH_TTL_MS });
+  const maxAge = Math.floor(MUSE_AUTH_TTL_MS / 1000);
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || '').toLowerCase();
+  const secure = proto === 'https' ? '; Secure' : '';
+  return `muse_auth=${encodeURIComponent(token)}; HttpOnly${secure}; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+}
+
+// Middleware: require a valid, unexpired muse_auth cookie
+function requireMuseAuth(req, res, next) {
+  try {
+    const raw = readCookie(req, 'muse_auth');
+    if (!raw) return res.status(401).json({ success: false, error: 'Autenticazione MUSE richiesta.' });
+    const payload = verifyToken(raw);
+    if (payload.type !== 'muse-auth' || !payload.exp || payload.exp < Date.now()) {
+      return res.status(401).json({ success: false, error: 'Sessione MUSE scaduta.' });
+    }
+    next();
+  } catch {
+    return res.status(401).json({ success: false, error: 'Sessione MUSE non valida.' });
+  }
+}
+
 // 72h before 00:00 of chosen day (dateISO = "YYYY-MM-DD")
 function is72hBeforeMidnight(dateISO) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateISO || ''))) return false;
@@ -115,6 +147,7 @@ app.get('/internal', (req, res) => {
 app.post('/internal', (req, res) => {
   const entered = req.body.password;
   if (entered === process.env.INTERNAL_PW) {
+    res.setHeader('Set-Cookie', buildMuseAuthCookie(req));
     res.sendFile(path.join(__dirname, 'public', 'internal.html'));
   } else {
     res.redirect('/internal?error=1');
@@ -124,7 +157,9 @@ app.post('/internal', (req, res) => {
 // Password verification for SPA
 app.post('/api/verify-password', (req, res) => {
   const entered = req.body.password;
-  res.json({ ok: entered === process.env.INTERNAL_PW });
+  const ok = entered === process.env.INTERNAL_PW;
+  if (ok) res.setHeader('Set-Cookie', buildMuseAuthCookie(req));
+  res.json({ ok });
 });
 
 // External shop
@@ -202,7 +237,7 @@ app.post('/checkout', async (req, res) => {
 */
 
 // User submits quote request
-app.post('/cleaning-quote', async (req, res) => {
+app.post('/cleaning-quote', requireMuseAuth, async (req, res) => {
   try {
     const { region, name, email, apartmentId, dateISO } = req.body;
 
