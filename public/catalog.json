@@ -1,0 +1,88 @@
+{
+  "external": {
+    "Dolomites": [
+      { "id":1,  "title":"Asciugamano bagno 100×150",        "description":"6 per Pacco",  "price":11.77 },
+      { "id":2,  "title":"Lenzuolo Deluxe 2P 200×210", "description":"5 per Pacco",  "price":21.47 },
+      { "id":3,  "title":"Lenzuolo Deluxe 1P 100×210", "description":"5 per Pacco",  "price":16.45 },
+      { "id":4,  "title":"Lenzuolo 2P 240×300",              "description":"10 per Pacco", "price":28.17 },
+      { "id":5,  "title":"Lenzuolo 1P 160×300",              "description":"10 per Pacco", "price":19.04 },
+      { "id":6,  "title":"Federa grande 60×80",              "description":"25 per Pacco", "price":29.44 },
+      { "id":7,  "title":"Federa piccola 50×80",             "description":"25 per Pacco", "price":26.99 },
+      { "id":8,  "title":"Copripiumino 1P 135×200",          "description":"10 per Pacco", "price":35.78 },
+      { "id":9,  "title":"Tovaglia 150×150",                 "description":"10 per Pacco", "price":29.75 },
+      { "id":10, "title":"Strofinacci bicchieri 50×70",  "description":"25 per Pacco", "price":19.99 },
+      { "id":11, "title":"Scendibagno 50×90",                "description":"12 per Pacco", "price":18.18 },
+      { "id":12, "title":"Asciugamano bidet 40×60",          "description":"20 per Pacco", "price":19.36 },
+      { "id":13, "title":"Asciugamano viso 50×100",          "description":"12 per Pacco", "price":11.51 }
+    ],
+    "South Tyrol": [
+      { "id":1,  "title":"Asciugamano bagno 100×150",       "description":"6 per Pacco",  "price":11.77 },
+      { "id":2,  "title":"Lenzuolo 2P 240×300",             "description":"10 per Pacco", "price":28.17 },
+      { "id":3,  "title":"Lenzuolo 1P 160×300",             "description":"10 per Pacco", "price":19.04 },
+      { "id":4,  "title":"Federa grande 60×80",             "description":"25 per Pacco", "price":29.44 },
+      { "id":5,  "title":"Federa piccola 50×80",            "description":"25 per Pacco", "price":26.99 },
+      { "id":6,  "title":"Copripiumino 1P 135×200",         "description":"10 per Pacco", "price":35.78 },
+      { "id":7,  "title":"Tovaglia 150×150",                "description":"10 per Pacco", "price":29.75 },
+      { "id":8,  "title":"Strofinacci bicchieri 50×70", "description":"25 per Pacco", "price":19.99 },
+      { "id":9,  "title":"Scendibagno 50×90",               "description":"12 per Pacco", "price":18.18 },
+      { "id":10, "title":"Asciugamano bidet 40×60",         "description":"20 per Pacco", "price":19.36 },
+      { "id":11, "title":"Asciugamano viso 50×100",         "description":"12 per Pacco", "price":11.51 }
+    ],
+    "Garda": [
+      { "id":1,  "title":"Asciugamano bagno 100×150",       "description":"6 per Pacco",  "price":11.77 },
+      { "id":2,  "title":"Lenzuolo 2P 240×300",             "description":"10 per Pacco", "price":28.17 },
+      { "id":3,  "title":"Lenzuolo 1P 160×300",             "description":"10 per Pacco", "price":19.04 },
+      { "id":4,  "title":"Federa grande 60×80",             "description":"25 per Pacco", "price":29.44 },
+      { "id":5,  "title":"Federa piccola 50×80",            "description":"25 per Pacco", "price":26.99 },
+      { "id":6,  "title":"Copripiumino 1P 135×200",         "description":"10 per Pacco", "price":35.78 },
+      { "id":7,  "title":"Tovaglia 150×150",                "description":"10 per Pacco", "price":29.75 },
+      { "id":8,  "title":"Strofinacci bicchieri 50×70", "description":"25 per Pacco", "price":19.99 },
+      { "id":9,  "title":"Scendibagno 50×90",               "description":"12 per Pacco", "price":15.08 },
+      { "id":10, "title":"Asciugamano bidet 40×60",         "description":"20 per Pacco", "price":19.36 },
+      { "id":11, "title":"Asciugamano viso 50×100",         "description":"12 per Pacco", "price":11.51 }
+    ]
+  },
+  "muse": {
+    "Val Gardena": [
+      { "id":1,  "title":"Asciugamano bagno 100×150",        "description":"6 per Pacco",  "price": 9.77 },
+      { "id":2,  "title":"Lenzuolo Deluxe 2P 200×210", "description":"5 per Pacco",  "price":17.53 },
+      { "id":3,  "title":"Lenzuolo Deluxe 1P 100×210", "description":"5 per Pacco",  "price":13.74 },
+      { "id":4,  "title":"Lenzuolo 2P 240×300",              "description":"10 per Pacco", "price":23.53 },
+      { "id":5,  "title":"Lenzuolo 1P 160×300",              "description":"10 per Pacco", "price":15.81 },
+      { "id":6,  "title":"Federa grande 60×80",              "description":"25 per Pacco", "price":24.44 },
+      { "id":7,  "title":"Federa piccola 50×80",             "description":"25 per Pacco", "price":22.55 },
+      { "id":8,  "title":"Copripiumino 1P 135×200",          "description":"10 per Pacco", "price":29.79 },
+      { "id":9,  "title":"Tovaglia 150×150",                 "description":"10 per Pacco", "price":24.68 },
+      { "id":10, "title":"Strofinacci bicchieri 50×70",  "description":"25 per Pacco", "price":17.20 },
+      { "id":11, "title":"Scendibagno 50×90",                "description":"12 per Pacco", "price":15.08 },
+      { "id":12, "title":"Asciugamano bidet 40×60",          "description":"20 per Pacco", "price":11.53 },
+      { "id":13, "title":"Asciugamano viso 50×100",          "description":"12 per Pacco", "price": 9.61 }
+    ],
+    "South Tyrol": [
+      { "id":1,  "title":"Asciugamano bagno 100×150",       "description":"6 per Pacco",  "price": 9.77 },
+      { "id":2,  "title":"Lenzuolo 2P 240×300",             "description":"10 per Pacco", "price":23.53 },
+      { "id":3,  "title":"Lenzuolo 1P 160×300",             "description":"10 per Pacco", "price":15.81 },
+      { "id":4,  "title":"Federa grande 60×80",             "description":"25 per Pacco", "price":24.44 },
+      { "id":5,  "title":"Federa piccola 50×80",            "description":"25 per Pacco", "price":22.55 },
+      { "id":6,  "title":"Copripiumino 1P 135×200",         "description":"10 per Pacco", "price":29.79 },
+      { "id":7,  "title":"Tovaglia 150×150",                "description":"10 per Pacco", "price":24.68 },
+      { "id":8,  "title":"Strofinacci bicchieri 50×70", "description":"25 per Pacco", "price":17.20 },
+      { "id":9,  "title":"Scendibagno 50×90",               "description":"12 per Pacco", "price":15.08 },
+      { "id":10, "title":"Asciugamano bidet 40×60",         "description":"20 per Pacco", "price":11.53 },
+      { "id":11, "title":"Asciugamano viso 50×100",         "description":"12 per Pacco", "price": 9.61 }
+    ],
+    "Garda": [
+      { "id":1,  "title":"Asciugamano bagno 100×150",       "description":"6 per Pacco",  "price": 9.77 },
+      { "id":2,  "title":"Lenzuolo 2P 240×300",             "description":"10 per Pacco", "price":23.53 },
+      { "id":3,  "title":"Lenzuolo 1P 160×300",             "description":"10 per Pacco", "price":15.81 },
+      { "id":4,  "title":"Federa grande 60×80",             "description":"25 per Pacco", "price":24.44 },
+      { "id":5,  "title":"Federa piccola 50×80",            "description":"25 per Pacco", "price":22.55 },
+      { "id":6,  "title":"Copripiumino 1P 135×200",         "description":"10 per Pacco", "price":29.79 },
+      { "id":7,  "title":"Tovaglia 150×150",                "description":"10 per Pacco", "price":24.68 },
+      { "id":8,  "title":"Strofinacci bicchieri 50×70", "description":"25 per Pacco", "price":17.20 },
+      { "id":9,  "title":"Scendibagno 50×90",               "description":"12 per Pacco", "price":15.08 },
+      { "id":10, "title":"Asciugamano bidet 40×60",         "description":"20 per Pacco", "price":11.53 },
+      { "id":11, "title":"Asciugamano viso 50×100",         "description":"12 per Pacco", "price": 9.61 }
+    ]
+  }
+}
