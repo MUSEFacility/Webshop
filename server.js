@@ -115,6 +115,16 @@ function buildMuseAuthCookie(req) {
   return `muse_auth=${encodeURIComponent(token)}; HttpOnly${secure}; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
 }
 
+// Admin auth is a separate session from MUSE. Shorter TTL since more sensitive.
+const ADMIN_AUTH_TTL_MS = 2 * 60 * 60 * 1000; // 2h
+function buildAdminAuthCookie(req) {
+  const token = signToken({ type: 'admin-auth', exp: Date.now() + ADMIN_AUTH_TTL_MS });
+  const maxAge = Math.floor(ADMIN_AUTH_TTL_MS / 1000);
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || '').toLowerCase();
+  const secure = proto === 'https' ? '; Secure' : '';
+  return `admin_auth=${encodeURIComponent(token)}; HttpOnly${secure}; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+}
+
 // Middleware: require a valid, unexpired muse_auth cookie
 function requireMuseAuth(req, res, next) {
   try {
@@ -127,6 +137,26 @@ function requireMuseAuth(req, res, next) {
     next();
   } catch {
     return res.status(401).json({ success: false, error: 'Sessione MUSE non valida.' });
+  }
+}
+
+// Middleware: require admin_auth. HTML page requests get a redirect to /,
+// API/JSON requests get a 401 so the caller can show an error.
+function requireAdminAuth(req, res, next) {
+  const wantsHtml = (req.headers.accept || '').includes('text/html');
+  const fail = (msg) => wantsHtml
+    ? res.redirect('/')
+    : res.status(401).json({ success: false, error: msg });
+  try {
+    const raw = readCookie(req, 'admin_auth');
+    if (!raw) return fail('Autenticazione admin richiesta.');
+    const payload = verifyToken(raw);
+    if (payload.type !== 'admin-auth' || !payload.exp || payload.exp < Date.now()) {
+      return fail('Sessione admin scaduta.');
+    }
+    next();
+  } catch {
+    return fail('Sessione admin non valida.');
   }
 }
 
@@ -170,6 +200,15 @@ app.post('/api/verify-password', (req, res) => {
   const entered = req.body.password;
   const ok = entered === process.env.INTERNAL_PW;
   if (ok) res.setHeader('Set-Cookie', buildMuseAuthCookie(req));
+  res.json({ ok });
+});
+
+// Admin password verification — separate from MUSE auth.
+// Hidden access: triggered by 5 clicks on the nav logo in the SPA.
+app.post('/api/verify-admin-password', (req, res) => {
+  const entered = req.body.password;
+  const ok = entered === process.env.ADMIN_PW;
+  if (ok) res.setHeader('Set-Cookie', buildAdminAuthCookie(req));
   res.json({ ok });
 });
 
@@ -661,7 +700,7 @@ app.get('/debug/preview/decision-deny', (req, res) => {
 */
 
 // Serve the dashboard HTML (from views/, not public/, so it is only reachable when authed)
-app.get('/admin', requireMuseAuth, (req, res) => {
+app.get('/admin', requireAdminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'admin.html'));
 });
 
@@ -690,7 +729,7 @@ function buildDateRangeClause(req, column = 'created_at') {
   };
 }
 
-app.get('/admin/api/stats', requireMuseAuth, async (req, res) => {
+app.get('/admin/api/stats', requireAdminAuth, async (req, res) => {
   try {
     if (!db.isConfigured()) {
       return res.status(503).json({ success: false, error: 'Analytics DB not configured' });
@@ -791,7 +830,7 @@ app.get('/admin/api/stats', requireMuseAuth, async (req, res) => {
   }
 });
 
-app.get('/admin/export.csv', requireMuseAuth, async (req, res) => {
+app.get('/admin/export.csv', requireAdminAuth, async (req, res) => {
   try {
     if (!db.isConfigured()) {
       return res.status(503).send('Analytics DB not configured');
@@ -845,6 +884,14 @@ app.get('/admin/export.csv', requireMuseAuth, async (req, res) => {
 /* ─────────────────────────── STARTUP VALIDATION ───────────────────────── */
 if (!process.env.INTERNAL_PW) {
   console.error('FATAL: INTERNAL_PW is not set in .env — server cannot verify passwords.');
+  process.exit(1);
+}
+if (!process.env.ADMIN_PW) {
+  console.error('FATAL: ADMIN_PW is not set in .env — admin dashboard unreachable.');
+  process.exit(1);
+}
+if (process.env.ADMIN_PW === process.env.INTERNAL_PW) {
+  console.error('FATAL: ADMIN_PW must differ from INTERNAL_PW — MUSE users would otherwise get admin access.');
   process.exit(1);
 }
 if ((process.env.QUOTE_SIGNING_SECRET || 'CHANGE_ME') === 'CHANGE_ME') {
