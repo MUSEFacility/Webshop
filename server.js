@@ -150,9 +150,9 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Internal (password gated)
+// Internal (password gated) — direct URL funnels through the portal
 app.get('/internal', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'internal-login.html'));
+  res.redirect(301, '/');
 });
 
 app.post('/internal', (req, res) => {
@@ -173,9 +173,9 @@ app.post('/api/verify-password', (req, res) => {
   res.json({ ok });
 });
 
-// External shop
+// External shop — direct URL funnels through the portal
 app.get('/external', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'external.html'));
+  res.redirect(301, '/');
 });
 
 // Checkout (existing)
