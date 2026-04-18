@@ -1,0 +1,2533 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>MUSE – Portale</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#2d5016" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Design tokens ── */
+    :root {
+      /* palette */
+      --bg:          #f8f5f0;
+      --bg-alt:      #f2ede6;
+      --card:        #ffffff;
+      --card-border: #e5dfd6;
+      --text:        #1a1814;
+      --muted:       #7a7268;
+      --faint:       #b0a89e;
+      --field:       #faf7f3;
+      --field-border:#d8d2c8;
+      --panel:       #f5f1eb;
+      --panel-border:#e8e2d8;
+
+      /* brand accents */
+      --green:       #2c4a3e;
+      --green-light: #3d6454;
+      --green-bg:    #edf3f0;
+      --stone:       #9c8e80;
+      --beige:       #ede8df;
+
+      /* shadow / radius */
+      --shadow-sm:   0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
+      --shadow-md:   0 4px 20px rgba(0,0,0,.08), 0 1px 4px rgba(0,0,0,.04);
+      --shadow-lg:   0 16px 48px rgba(0,0,0,.10), 0 4px 12px rgba(0,0,0,.05);
+      --radius:      16px;
+
+      /* focus */
+      --focus:       rgba(44,74,62,.40);
+      --ring:        0 0 0 3px var(--focus);
+
+      /* repairs status */
+      --refused-bg:     #fef5f5;
+      --refused-border: #f5c5c5;
+      --refused-text:   #9b2626;
+      --done-bg:        #f4faf6;
+      --done-border:    #b8e0c8;
+      --done-text:      #1f6640;
+      --advice-bg:      #f3f6fd;
+      --advice-border:  #c0d0f0;
+      --advice-text:    #2040a0;
+
+      /* typography */
+      --font-serif: 'Cormorant Garamond', Georgia, serif;
+      --font-sans:  'Inter', ui-sans-serif, system-ui, sans-serif;
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+
+    body {
+      min-height: 100svh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.6;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout shell ── */
+    .shell {
+      width: min(960px, 100%);
+      margin: 0 auto;
+      padding: clamp(16px, 3vw, 32px);
+      padding-top: 0;
+    }
+
+    /* ── Top nav ── */
+    .topnav {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(248,245,240,.92);
+      backdrop-filter: blur(16px) saturate(160%);
+      -webkit-backdrop-filter: blur(16px) saturate(160%);
+      border-bottom: 1px solid var(--card-border);
+      padding: 0 clamp(16px, 3vw, 32px);
+    }
+
+    .nav-inner {
+      width: min(960px, 100%);
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 0;
+      margin-right: 12px;
+      flex-shrink: 0;
+    }
+
+    .nav-brand img {
+      width: 30px; height: 30px;
+      border-radius: 8px;
+      object-fit: contain;
+      background: var(--beige);
+      border: 1px solid var(--card-border);
+      padding: 3px;
+    }
+
+    .nav-brand span {
+      font-family: var(--font-serif);
+      font-weight: 600;
+      font-size: 18px;
+      letter-spacing: 0.04em;
+      color: var(--text);
+    }
+
+    .tab-btn {
+      padding: 16px 14px;
+      border: none;
+      border-bottom: 2px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color .2s ease, border-color .2s ease;
+      margin-bottom: -1px;
+    }
+
+    .tab-btn:hover { color: var(--text); }
+
+    .tab-btn.active {
+      color: var(--green);
+      border-bottom-color: var(--green);
+    }
+
+    .tab-btn { position: relative; }
+    .tab-btn .nav-short { display: none; }
+
+    .nav-auth {
+      margin-left: auto;
+      padding: 6px 12px;
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .2s ease, color .2s ease, border-color .2s ease;
+    }
+    .nav-auth:hover { color: var(--text); border-color: var(--text); }
+    .nav-auth.is-muse {
+      color: var(--green);
+      border-color: var(--green);
+      background: rgba(45, 80, 22, 0.06);
+    }
+    .nav-auth.is-muse:hover { background: rgba(45, 80, 22, 0.12); }
+
+    @media (max-width: 500px) {
+      .tab-btn { padding: 13px 8px; font-size: 11px; }
+      .tab-btn .nav-full { display: none; }
+      .tab-btn .nav-short { display: inline; }
+      .nav-brand span { display: none; }
+    }
+
+    /* ── Tab badge (cart count) ── */
+    .tab-badge {
+      position: absolute; top: 6px; right: 2px;
+      min-width: 18px; height: 18px; padding: 0 5px;
+      border-radius: 999px; background: var(--green); color: #fff;
+      font-size: 10px; font-weight: 700; line-height: 18px; text-align: center;
+      display: none;
+    }
+    .tab-badge.visible { display: inline-block; }
+
+    /* ── Tab sections ── */
+    .tab-section { display: none; padding-top: clamp(20px, 3vw, 36px); }
+    .tab-section.active { display: block; }
+
+    /* ── Card ── */
+    .card {
+      border-radius: var(--radius);
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--shadow-md);
+      padding: clamp(20px, 3.5vw, 36px);
+    }
+
+    /* ── Section header ── */
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .logo-img {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      object-fit: contain;
+      background: var(--beige);
+      border: 1px solid var(--card-border);
+      padding: 5px;
+      flex: 0 0 auto;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: var(--font-serif);
+      font-size: clamp(22px, 2.8vw, 34px);
+      font-weight: 500;
+      line-height: 1.1;
+      letter-spacing: 0.01em;
+      color: var(--text);
+    }
+
+    .sub {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      letter-spacing: 0.01em;
+    }
+
+    /* ── Form elements ── */
+    .section-title {
+      margin: 20px 0 10px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      color: var(--faint);
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    select,
+    input[type="text"],
+    input[type="email"],
+    input[type="date"],
+    input[type="number"],
+    input[type="password"] {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: var(--field);
+      border: 1px solid var(--field-border);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      outline: none;
+      transition: border-color .2s ease, box-shadow .2s ease;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    select:focus-visible,
+    input:focus-visible {
+      border-color: var(--green);
+      box-shadow: var(--ring);
+    }
+
+    select { color-scheme: light; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a7268' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+
+    /* ── Buttons ── */
+    button { font-family: var(--font-sans); cursor: pointer; }
+
+    .btn-primary {
+      width: 100%;
+      padding: 13px 20px;
+      border-radius: 10px;
+      border: none;
+      background: var(--green);
+      color: #fff;
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: background .2s ease, transform .1s ease, box-shadow .2s ease;
+      box-shadow: 0 2px 8px rgba(44,74,62,.25);
+    }
+
+    .btn-primary:hover {
+      background: var(--green-light);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(44,74,62,.28);
+    }
+
+    .btn-primary:active { transform: translateY(0); box-shadow: none; }
+
+    .btn-primary:focus-visible {
+      outline: none;
+      box-shadow: var(--ring);
+    }
+
+    .btn-primary:disabled {
+      background: var(--field-border);
+      color: var(--faint);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+      opacity: 0.6;
+    }
+
+    /* ── Grid rows ── */
+    .row { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    @media (min-width: 680px) {
+      .row.cols-2 { grid-template-columns: 1fr 1fr; }
+      .row.cols-3 { grid-template-columns: 1.2fr 1fr 1fr; }
+    }
+
+    /* ── Product / cart items ── */
+    .product, .cart-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      margin-bottom: 8px;
+      transition: border-color .2s ease;
+    }
+
+    .product:hover { border-color: var(--stone); }
+    .product small { display: block; color: var(--faint); margin-top: 2px; font-size: 12px; }
+
+    .qty-control {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      width: 100%;
+      max-width: 200px;
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+
+    .qty-control button {
+      width: auto;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 400;
+      transition: background .15s ease, border-color .15s ease;
+    }
+
+    .qty-control button:hover { background: var(--beige); border-color: var(--stone); }
+    .qty-control input { width: 56px; text-align: center; padding: 8px 4px; border-radius: 8px; }
+
+    .cart { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--panel-border); }
+
+    /* ── Pack count pill ── */
+    .pack-pill {
+      display: inline-block; font-size: 10px; font-weight: 600;
+      background: var(--beige); color: var(--muted); border: 1px solid var(--card-border);
+      padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: middle;
+    }
+
+    /* ── Product group headers ── */
+    .product-group-header {
+      display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+      padding: 8px 0 4px; margin-top: 6px;
+      font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .product-group-header:hover { color: var(--text); }
+    .product-group-header .pg-chevron { font-size: 10px; transition: transform .15s; }
+    .product-group-header.collapsed .pg-chevron { transform: rotate(-90deg); }
+    .product-group-items.collapsed { display: none; }
+
+    /* ── Sticky cart bar (mobile) ── */
+    .cart-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      display: none; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 12px clamp(16px, 3vw, 32px);
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      background: rgba(248,245,240,.95);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid var(--card-border);
+      box-shadow: 0 -4px 20px rgba(0,0,0,.08);
+    }
+    .cart-bar.visible { display: flex; }
+    .cart-bar-summary { font-size: 14px; font-weight: 600; color: var(--text); }
+    .cart-bar .btn-primary { flex-shrink: 0; padding: 10px 20px; font-size: 13px; }
+
+    /* ── Offline banner ── */
+    .offline-bar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 8px 16px; text-align: center;
+      background: #fef3cd; color: #856404; border-bottom: 1px solid #ffc107;
+      font-size: 13px; font-weight: 500;
+      transform: translateY(-100%); transition: transform .3s ease;
+    }
+    .offline-bar.visible { transform: translateY(0); }
+
+    /* ── Mobile touch targets ── */
+    @media (max-width: 540px) {
+      .qty-control button { min-width: 44px; min-height: 44px; font-size: 20px; }
+      .qty-control input { min-height: 44px; font-size: 16px; }
+    }
+
+    /* ── Safe area body padding ── */
+    body { padding-bottom: env(safe-area-inset-bottom, 0px); }
+    /* Extra space at bottom of tab sections when cart bar is visible */
+    .tab-section { padding-bottom: 0; transition: padding-bottom .2s; }
+    .tab-section.has-cart-bar { padding-bottom: 80px; }
+
+    .hint {
+      color: var(--faint);
+      font-size: 12px;
+      line-height: 1.6;
+      margin-top: 10px;
+    }
+
+    /* ── Tier toggle bar ── */
+    .tier-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: var(--green-bg);
+      border: 1px solid rgba(44,74,62,.15);
+      flex-wrap: wrap;
+    }
+
+    .tier-label { font-size: 13px; color: var(--green); flex: 1; min-width: 140px; }
+    .tier-label strong { font-weight: 600; }
+
+    .tier-toggle {
+      padding: 8px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(44,74,62,.30);
+      background: #fff;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      transition: background .18s ease, border-color .18s ease;
+    }
+
+    .tier-toggle:hover { background: var(--beige); border-color: var(--green); }
+
+    /* ── Cleaning quote box ── */
+    .cleaning-box {
+      margin: 16px 0;
+      padding: 20px;
+      border-radius: 14px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+    }
+
+    .cleaning-box h3 { margin: 0 0 14px; font-family: var(--font-serif); font-size: 17px; font-weight: 500; letter-spacing: 0.01em; }
+
+    /* ── Repairs section ── */
+    .repairs-header {
+      position: sticky;
+      top: 57px;
+      z-index: 5;
+      background: rgba(248,245,240,.92);
+      backdrop-filter: blur(12px) saturate(140%);
+      -webkit-backdrop-filter: blur(12px) saturate(140%);
+      padding: 14px 0;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 18px;
+    }
+
+    .repairs-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .repairs-left { display: flex; flex-direction: column; gap: 3px; }
+    .repairs-right { display: flex; align-items: center; gap: 10px; }
+
+    .pill-badge {
+      border: 1px solid var(--card-border);
+      background: var(--card);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .pill-btn {
+      border: 1px solid var(--card-border);
+      background: var(--card);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      color: var(--text);
+      cursor: pointer;
+      transition: background .15s ease, border-color .15s ease;
+      min-height: 32px;
+    }
+
+    .pill-btn:hover { background: var(--beige); border-color: var(--stone); }
+
+    .toggle-done-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      border: 1px solid var(--card-border);
+      background: var(--card);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .15s ease, color .15s ease, border-color .15s ease;
+    }
+
+    .toggle-done-btn:hover { background: var(--panel); color: var(--text); border-color: var(--stone); }
+    .toggle-done-btn.active { background: var(--green); color: #fff; border-color: var(--green); }
+    .toggle-done-btn.active:hover { filter: brightness(.93); }
+
+    .repairs-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 32px; }
+
+    .repair-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-left: 5px solid var(--stone);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 16px 16px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+
+    .repair-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .repair-card.status-in-corso   { border-left-color: #3b3b3b; }
+    .repair-card.status-consiglio  { border-left-color: #5070c0; background: var(--advice-bg); }
+    .repair-card.status-comunicato { border-left-color: #e2a300; background: #fffcf0; }
+    .repair-card.status-rifiutato  { border-left-color: #9b2626; background: var(--refused-bg); padding: 12px 16px 10px; opacity: 0.7; }
+    .repair-card.status-completato { border-left-color: #1f6640; background: var(--done-bg); padding: 12px 16px 10px; opacity: 0.7; }
+    .repair-card.status-rifiutato:hover,
+    .repair-card.status-completato:hover { opacity: 0.9; }
+
+    .card-row-top { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
+    .card-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+
+    .card-title { font-family: var(--font-serif); font-size: 17px; font-weight: 500; line-height: 1.3; word-break: break-word; }
+    .card-statusline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .card-status { font-size: 12px; color: var(--faint); letter-spacing: 0.02em; }
+    .card-status.done { color: var(--done-text); font-weight: 600; }
+
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+      padding: 3px 10px; border-radius: 999px;
+      background: var(--panel); color: var(--muted); border: 1px solid var(--card-border);
+    }
+    .status-pill--in-corso   { background: #f0f0f0; color: var(--text); border-color: #ccc; }
+    .status-pill--comunicato { background: #fef6e0; color: #92670a; border-color: #f0d48a; }
+    .status-pill--consiglio  { background: var(--advice-bg); color: var(--advice-text); border-color: var(--advice-border); }
+    .status-pill--rifiutato  { background: var(--refused-bg); color: var(--refused-text); border-color: var(--refused-border); }
+    .status-pill--completato { background: var(--done-bg); color: var(--done-text); border-color: var(--done-border); }
+
+    .card-badge {
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--card-border);
+      background: var(--panel);
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+
+    .card-badge.warn {
+      color: #92670a;
+      border-color: #f0d48a;
+      background: #fdf8ec;
+    }
+
+    .card-desc { font-size: 13.5px; color: var(--muted); white-space: pre-wrap; line-height: 1.5; }
+
+    .owner-comment {
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .owner-comment .oc-label { color: var(--faint); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 5px; }
+
+    .card-images { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .card-images img {
+      width: 72px; height: 72px; object-fit: cover;
+      border-radius: 8px; border: 2px solid var(--card-border);
+      cursor: pointer; background: var(--panel);
+      transition: border-color .15s ease, transform .15s ease;
+    }
+
+    .card-images img:hover { border-color: var(--green); transform: scale(1.05); }
+
+    .card-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+
+    .action-btn {
+      appearance: none;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      min-height: 32px;
+      transition: filter .15s ease, transform .08s ease;
+    }
+    .action-btn:active { transform: translateY(1px); }
+    .action-btn:hover { filter: brightness(.93); }
+    .action-btn:disabled { opacity: .4; cursor: default; filter: none; }
+
+    .btn-neutral  { background: var(--text); color: #fff; }
+    .btn-danger   { background: #c0392b; color: #fff; }
+    .btn-confirm  { background: var(--green); color: #fff; }
+
+    .repairs-group-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 0 6px;
+      font-family: var(--serif); font-size: 15px; font-weight: 600;
+      color: var(--text); cursor: pointer; user-select: none;
+    }
+    .repairs-group-header:hover { color: var(--green); }
+    .repairs-group-header .group-count {
+      font-family: var(--sans); font-size: 11px; font-weight: 500;
+      color: var(--muted); background: var(--panel); border: 1px solid var(--card-border);
+      padding: 2px 8px; border-radius: 999px;
+    }
+    .repairs-group-header .group-chevron {
+      font-size: 12px; color: var(--faint); transition: transform .15s;
+    }
+    .repairs-group-header.collapsed .group-chevron { transform: rotate(-90deg); }
+    .repairs-group-cards { display: flex; flex-direction: column; gap: 10px; }
+    .repairs-group-cards.collapsed { display: none; }
+
+    .repairs-empty { padding: 16px 0; color: var(--faint); font-size: 14px; }
+    .repairs-error { padding: 16px 0; color: var(--refused-text); font-size: 14px; }
+
+    /* ── Image full-screen preview ── */
+    .img-preview {
+      position: fixed; inset: 0;
+      background: rgba(20,18,14,.96);
+      display: none; z-index: 9999;
+      touch-action: none;
+    }
+
+    .img-preview.open { display: block; }
+
+    .img-preview .prev-top {
+      position: fixed; top: 0; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 14px;
+      background: linear-gradient(to bottom, rgba(0,0,0,.50), transparent);
+      pointer-events: none;
+    }
+
+    .img-preview .prev-top > * { pointer-events: auto; }
+
+    .prev-counter {
+      color: rgba(255,255,255,.80); font-size: 12px; letter-spacing: 0.06em;
+      padding: 6px 12px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.20);
+      background: rgba(255,255,255,.08);
+      backdrop-filter: blur(8px);
+    }
+
+    .prev-btn {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,.20);
+      background: rgba(255,255,255,.08);
+      color: rgba(255,255,255,.90); padding: 9px 14px;
+      border-radius: 10px; cursor: pointer;
+      min-height: 42px; font-family: inherit; font-size: 13px;
+      backdrop-filter: blur(8px);
+      transition: background .15s ease;
+    }
+
+    .prev-btn:hover { background: rgba(255,255,255,.14); }
+
+    .prev-stage {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .prev-stage img {
+      max-width: 100vw; max-height: 100vh;
+      object-fit: contain;
+      user-select: none; -webkit-user-drag: none;
+      transform-origin: center center; will-change: transform;
+    }
+
+    .prev-nav {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      display: flex; justify-content: space-between; gap: 10px;
+      padding: 14px;
+      background: linear-gradient(to top, rgba(0,0,0,.50), transparent);
+      pointer-events: none;
+    }
+
+    .prev-nav > * { pointer-events: auto; }
+    .prev-spacer { flex: 1; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 60;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(26,24,20,.45);
+      backdrop-filter: blur(4px);
+      padding: 18px;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal-panel {
+      width: min(500px, 100%);
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+    }
+
+    .modal-head {
+      padding: 20px 20px 12px;
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 12px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .modal-head h2 { margin: 0; font-family: var(--font-serif); font-size: 20px; font-weight: 500; }
+
+    .modal-body { padding: 16px 20px; }
+
+    .modal-foot {
+      padding: 14px 20px;
+      border-top: 1px solid var(--panel-border);
+      display: flex; justify-content: flex-end;
+      gap: 10px; flex-wrap: wrap;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      padding: 6px 10px;
+      cursor: pointer;
+      color: var(--muted);
+      font-family: inherit;
+      transition: background .15s ease;
+    }
+
+    .modal-close:hover { background: var(--panel); color: var(--text); }
+
+    .modal-textarea {
+      width: 100%; min-height: 110px;
+      padding: 12px 14px; border-radius: 10px;
+      border: 1px solid var(--field-border);
+      background: var(--field);
+      color: var(--text);
+      font: inherit; font-size: 14px; resize: vertical;
+    }
+
+    .modal-textarea:focus-visible { outline: none; border-color: var(--green); box-shadow: var(--ring); }
+
+    .modal-hint { margin-top: 8px; color: var(--faint); font-size: 12px; }
+
+    .modal-msg { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+    .modal-foot-btn {
+      border: none; border-radius: 8px;
+      padding: 10px 18px; cursor: pointer;
+      font-weight: 600; font-size: 12px;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      font-family: inherit;
+      transition: filter .15s ease, transform .08s ease;
+    }
+
+    .modal-foot-btn:hover { filter: brightness(.93); }
+    .modal-foot-btn:active { transform: translateY(1px); }
+    .modal-foot-btn.secondary { background: var(--panel); color: var(--text); border: 1px solid var(--card-border); }
+    .modal-foot-btn.danger { background: #c0392b; color: #fff; }
+    .modal-foot-btn.confirm { background: var(--green); color: #fff; }
+
+    /* ── Password modal specific ── */
+    .pw-error { color: var(--refused-text); font-size: 13px; margin-top: 8px; display: none; }
+
+    /* ── Welcome modal ── */
+    .welcome-modal {
+      position: fixed; inset: 0; z-index: 80;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(26,24,20,.50);
+      padding: 18px;
+      backdrop-filter: blur(8px);
+    }
+
+    .welcome-panel {
+      width: min(460px, 100%);
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      box-shadow: var(--shadow-lg);
+      padding: clamp(24px, 5vw, 40px);
+      display: flex; flex-direction: column; gap: 22px;
+    }
+
+    .welcome-logo {
+      display: flex; align-items: center; gap: 12px;
+    }
+
+    .welcome-logo img {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      object-fit: contain;
+      background: var(--beige);
+      border: 1px solid var(--card-border);
+      padding: 4px;
+    }
+
+    .welcome-logo span {
+      font-family: var(--font-serif);
+      font-weight: 600;
+      font-size: 20px;
+      letter-spacing: 0.04em;
+    }
+
+    .welcome-title {
+      margin: 0;
+      font-family: var(--font-serif);
+      font-size: clamp(20px, 2.8vw, 28px);
+      font-weight: 500;
+      line-height: 1.15;
+      letter-spacing: 0.01em;
+    }
+
+    .welcome-sub { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
+
+    .welcome-choices { display: flex; flex-direction: column; gap: 10px; }
+
+    .welcome-choice {
+      display: flex; align-items: center; gap: 16px;
+      padding: 16px 18px;
+      border-radius: 12px;
+      border: 1px solid var(--card-border);
+      background: var(--panel);
+      cursor: pointer;
+      text-align: left; width: 100%;
+      font-family: inherit; color: var(--text);
+      transition: background .2s ease, border-color .2s ease, transform .1s ease, box-shadow .2s ease;
+    }
+
+    .welcome-choice:hover {
+      background: var(--beige);
+      border-color: var(--stone);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .welcome-choice:active { transform: translateY(0); }
+
+    .welcome-choice-icon {
+      font-size: 20px;
+      width: 42px; height: 42px;
+      display: grid; place-items: center;
+      border-radius: 10px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      flex-shrink: 0;
+    }
+
+    .welcome-choice-text { display: flex; flex-direction: column; gap: 3px; }
+    .welcome-choice-title { font-weight: 600; font-size: 14px; }
+    .welcome-choice-sub { font-size: 12px; color: var(--muted); }
+
+    .welcome-pw-section { display: none; flex-direction: column; gap: 12px; }
+    .welcome-pw-section.visible { display: flex; }
+
+    .welcome-pw-back {
+      background: none; border: none; color: var(--muted);
+      font-size: 13px; cursor: pointer; padding: 0;
+      font-family: inherit; text-align: left;
+      transition: color .15s ease;
+    }
+
+    .welcome-pw-back:hover { color: var(--green); }
+
+    /* ── Toast ── */
+    #toast-container {
+      position: fixed;
+      bottom: 1.25rem; right: 1.25rem;
+      display: flex; flex-direction: column;
+      gap: 8px; z-index: 9999;
+      pointer-events: none;
+    }
+
+    .toast {
+      pointer-events: auto;
+      background: var(--text);
+      color: #f8f5f0;
+      border: none;
+      padding: 11px 16px;
+      border-radius: 10px;
+      opacity: 0; transform: translateY(12px);
+      transition: opacity .25s ease, transform .25s ease;
+      font-size: 13px;
+      font-weight: 500;
+      max-width: 300px;
+      letter-spacing: 0.01em;
+      box-shadow: var(--shadow-md);
+    }
+
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ── Home cards ── */
+    .home-cards {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+    }
+    .home-card {
+      flex: 1;
+      max-width: 200px;
+      background: var(--card);
+      border: 1px solid var(--field-border);
+      border-radius: 14px;
+      padding: 28px 16px 22px;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s;
+      text-align: center;
+      font-family: inherit;
+      font-size: inherit;
+      color: var(--text);
+    }
+    .home-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,.08);
+    }
+    .home-card:active { transform: translateY(0); }
+    .home-card-icon { font-size: 36px; margin-bottom: 10px; }
+    .home-card-title { font-family: var(--serif); font-weight: 600; font-size: 16px; margin-bottom: 4px; }
+    .home-card-sub { font-size: 12px; color: var(--muted); }
+    .home-card--muted { opacity: 0.5; }
+    .home-card--muted:hover { opacity: 0.7; }
+    @media (max-width: 540px) {
+      .home-cards { flex-direction: column; align-items: center; }
+      .home-card { max-width: 280px; width: 100%; }
+    }
+
+    /* ── Misc ── */
+    @media (max-width: 540px) {
+      .product, .cart-item { flex-direction: column; align-items: flex-start; }
+      .qty-control { max-width: none; justify-content: flex-start; }
+    }
+
+    /* focus outline reset */
+    :focus { outline: none; }
+    :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 4px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="offline-bar" class="offline-bar">Sei offline — alcune funzioni non sono disponibili</div>
+
+  <!-- ══ WELCOME MODAL ══ -->
+  <div id="welcome-modal" class="welcome-modal" aria-modal="true" role="dialog" aria-label="Benvenuto">
+    <div class="welcome-panel">
+      <div class="welcome-logo">
+        <img src="logo.png" alt="MUSE" />
+        <span>MUSE</span>
+      </div>
+
+      <!-- Step 1: choose who you are -->
+      <div id="welcome-step1">
+        <h2 class="welcome-title">Benvenuto nel portale MUSE</h2>
+        <p class="welcome-sub">Come vuoi accedere?</p>
+        <div class="welcome-choices" style="margin-top:14px">
+          <button class="welcome-choice" id="wc-external" type="button">
+            <div class="welcome-choice-icon">🌍</div>
+            <div class="welcome-choice-text">
+              <div class="welcome-choice-title">Proprietario esterno / Partner</div>
+              <div class="welcome-choice-sub">Prezzi standard, accesso immediato</div>
+            </div>
+          </button>
+          <button class="welcome-choice" id="wc-muse" type="button">
+            <div class="welcome-choice-icon">🔑</div>
+            <div class="welcome-choice-text">
+              <div class="welcome-choice-title">MUSE Besitzer</div>
+              <div class="welcome-choice-sub">Prezzi riservati, richiede password</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: password (MUSE) -->
+      <div id="welcome-step2" class="welcome-pw-section">
+        <button class="welcome-pw-back" id="wc-back" type="button">← Torna indietro</button>
+        <h2 class="welcome-title" style="font-size:18px">Accesso MUSE Besitzer</h2>
+        <div>
+          <label for="wc-pw-input" style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Password</label>
+          <input id="wc-pw-input" type="password" placeholder="Inserisci la password…" autocomplete="current-password" />
+          <div id="wc-pw-error" class="pw-error">Password non corretta, riprova.</div>
+        </div>
+        <button class="btn-primary" id="wc-pw-confirm" type="button">Accedi →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TOP NAV ══ -->
+  <nav class="topnav" role="navigation" aria-label="Navigazione principale">
+    <div class="nav-inner">
+      <div class="nav-brand" style="cursor:pointer" onclick="switchTab('home')">
+        <img src="logo.png" alt="MUSE Logo" />
+        <span>MUSE</span>
+      </div>
+
+      <button class="tab-btn" data-tab="prodotti" type="button"><span class="nav-full">Prodotti</span><span class="nav-short">🛍️</span></button>
+      <button class="tab-btn" data-tab="pulizie" type="button"><span class="nav-full">Lavanderia & Pulizie</span><span class="nav-short">🧺</span><span id="l-cart-badge" class="tab-badge"></span></button>
+      <button class="tab-btn" id="tab-btn-riparazioni" data-tab="riparazioni" type="button" style="display:none"><span class="nav-full">Riparazioni</span><span class="nav-short">🔧</span></button>
+      <button class="tab-btn" id="tab-btn-noleggio" data-tab="noleggio" type="button" style="display:none"><span class="nav-full">Noleggio</span><span class="nav-short">🔑</span></button>
+      <button class="nav-auth" id="nav-auth-btn" type="button" aria-label="MUSE login">Accedi MUSE</button>
+    </div>
+  </nav>
+
+  <div class="shell">
+
+    <!-- ══ HOME SCREEN ══ -->
+    <section id="tab-home" class="tab-section active" aria-label="Home">
+      <div style="max-width:560px; margin:60px auto; text-align:center; padding:0 20px;">
+        <img src="logo.png" alt="MUSE Logo" style="width:72px; height:72px; border-radius:16px; margin-bottom:16px;" />
+        <h1 style="font-family:var(--serif); font-size:28px; font-weight:600; margin:0 0 6px;">MUSE Services</h1>
+        <p style="color:var(--muted); font-size:14px; margin:0 0 32px;">Biancheria, pulizie e gestione riparazioni per il tuo appartamento.</p>
+
+        <div class="home-cards">
+          <button class="home-card" id="hc-riparazioni" style="display:none" onclick="switchTab('riparazioni')">
+            <div class="home-card-icon">🔧</div>
+            <div class="home-card-title">Riparazioni</div>
+            <div class="home-card-sub">Gestisci le segnalazioni</div>
+          </button>
+          <button class="home-card" onclick="switchTab('pulizie')">
+            <div class="home-card-icon">🧺</div>
+            <div class="home-card-title">Lavanderia & Pulizie</div>
+            <div class="home-card-sub">Ordina biancheria e richiedi preventivi</div>
+          </button>
+          <button class="home-card home-card--muted" onclick="switchTab('prodotti')">
+            <div class="home-card-icon">🛍️</div>
+            <div class="home-card-title">Prodotti</div>
+            <div class="home-card-sub">Prossimamente</div>
+          </button>
+          <button class="home-card home-card--muted" id="hc-noleggio" style="display:none" onclick="switchTab('noleggio')">
+            <div class="home-card-icon">🔑</div>
+            <div class="home-card-title">Noleggio</div>
+            <div class="home-card-sub">Prossimamente</div>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ TAB 1: PRODOTTI ══ -->
+    <section id="tab-prodotti" class="tab-section" aria-label="Prodotti">
+      <div class="card">
+        <div class="page-header">
+          <img src="logo.png" alt="MUSE Logo" class="logo-img" />
+          <div>
+            <h1>MUSE Shop – Prodotti</h1>
+            <div class="sub">Prossimamente disponibile.</div>
+          </div>
+        </div>
+        <div style="padding: 48px 24px; text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">🛍️</div>
+          <div style="font-family: var(--serif); font-size: 22px; color: var(--text); margin-bottom: 8px;">Prossimamente</div>
+          <div style="color: var(--muted); font-size: 14px; max-width: 360px; margin: 0 auto; line-height: 1.6;">
+            I prodotti fisici MUSE saranno disponibili a breve. Nel frattempo, esplora la sezione <strong>Lavanderia & Pulizie</strong>.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ TAB 2: LAVANDERIA & PULIZIE ══ -->
+    <section id="tab-pulizie" class="tab-section" aria-label="Lavanderia e Pulizie">
+      <div class="card">
+        <div class="page-header">
+          <img src="logo.png" alt="MUSE Logo" class="logo-img" />
+          <div>
+            <h1>Lavanderia & Pulizie</h1>
+            <div class="sub">Ordini di lavanderia e preventivi per la pulizia appartamento. Prezzi IVA esclusa.</div>
+          </div>
+        </div>
+
+        <!-- Tier toggle bar -->
+        <div class="tier-bar">
+          <div class="tier-label">
+            Prezzi: <strong id="l-tier-name">Standard</strong>
+          </div>
+          <button class="tier-toggle" id="l-tier-toggle-btn" type="button">Accedi come MUSE Besitzer</button>
+        </div>
+
+        <div class="section-title">Dettagli</div>
+        <div class="row cols-3">
+          <div>
+            <label for="l-region">Dove ritiri la biancheria</label>
+            <select id="l-region" required>
+              <option value="">Seleziona regione…</option>
+            </select>
+          </div>
+          <div>
+            <label for="l-name">Nome</label>
+            <input id="l-name" type="text" placeholder="Il tuo nome" />
+          </div>
+          <div>
+            <label for="l-email">Email</label>
+            <input id="l-email" type="email" placeholder="La tua email" />
+          </div>
+        </div>
+
+        <!-- Pickup schedule hint (region-dependent) -->
+        <div id="l-schedule-hint" style="display:none; margin-bottom:12px; padding:12px 16px; background:var(--card); border:1px solid var(--field-border); border-radius:8px; font-size:13px; line-height:1.6; color:var(--text);">
+          <strong style="color:var(--green);" id="l-schedule-region"></strong>
+          <div id="l-schedule-details" style="margin-top:4px;"></div>
+        </div>
+
+        <!-- Cleaning quote request (MUSE + Val Gardena only) -->
+        <div id="l-vg-toggle" style="display:none; margin-bottom:12px; padding:12px 16px; background:var(--card); border:1px solid var(--field-border); border-radius:8px;">
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin:0; font-size:14px; color:var(--text);">
+            <input type="checkbox" id="l-cleaning-drawer" style="width:16px; height:16px; cursor:pointer;" />
+            Richiedi preventivo per la pulizia appartamento (Val Gardena)
+          </label>
+        </div>
+
+        <div id="l-vg-quote" style="display:none; margin-bottom:16px; padding:16px; background:var(--card); border:1px solid var(--field-border); border-radius:8px;">
+          <div style="font-family:var(--serif); font-size:16px; color:var(--text); margin-bottom:12px;">Richiedi Preventivo Pulizia (Val Gardena)</div>
+          <div class="row cols-2">
+            <div>
+              <label for="l-apt-id">ID Appartamento</label>
+              <input id="l-apt-id" type="text" placeholder="4–5 caratteri alfanumerici" maxlength="5" />
+            </div>
+            <div>
+              <label for="l-clean-date">Data pulizia</label>
+              <input id="l-clean-date" type="date" />
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <button class="btn-primary" id="l-send-quote" type="button">Richiedi Preventivo</button>
+          </div>
+          <div style="margin-top:10px; font-size:12px; color:var(--muted); line-height:1.55;">
+            La richiesta deve essere inviata almeno 72 ore prima della mezzanotte del giorno scelto.<br/>
+            L'invio della richiesta non è conferma del servizio. La pulizia verrà programmata solo dopo una conferma scritta da MUSE.holiday.<br/>
+            Il prezzo della pulizia NON include biancheria/lavanderia.
+          </div>
+        </div>
+
+        <div class="section-title">Prodotti</div>
+        <div id="l-products"></div>
+
+        <div class="cart">
+          <div class="section-title">Carrello</div>
+          <div id="l-cart-items"></div>
+          <div class="sub">Totale: €<span id="l-total">0.00</span></div>
+          <div style="margin-top:12px">
+            <button class="btn-primary" id="l-checkout" type="button" disabled>Invia Ordine</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ TAB 3: RIPARAZIONI ══ -->
+    <section id="tab-riparazioni" class="tab-section" aria-label="Riparazioni">
+      <div class="repairs-header">
+        <div class="repairs-topbar">
+          <div class="repairs-left">
+            <h1 id="r-title" style="margin:0; font-size:clamp(16px,2vw,22px)">Interventi richiesti | MUSE</h1>
+            <div id="r-sub" class="sub"></div>
+          </div>
+          <div class="repairs-right">
+            <div id="r-badge" class="pill-badge">Caricamento…</div>
+            <span id="r-last-updated" style="font-size:11px; color:var(--faint);"></span>
+            <button id="r-refresh" class="pill-btn" type="button" title="Aggiorna">↻</button>
+          </div>
+        </div>
+        <button id="r-toggle-done" class="toggle-done-btn" type="button">Mostra completati / rifiutati</button>
+        <div id="r-msg"></div>
+      </div>
+
+      <div id="r-list" class="repairs-list"></div>
+    </section>
+
+    <!-- ══ TAB 4: NOLEGGIO ══ -->
+    <section id="tab-noleggio" class="tab-section" aria-label="Noleggio">
+      <div class="card">
+        <div class="page-header">
+          <img src="logo.png" alt="MUSE Logo" class="logo-img" />
+          <div>
+            <h1>MUSE Shop – Noleggio</h1>
+            <div class="sub">Prossimamente disponibile.</div>
+          </div>
+        </div>
+        <div style="padding: 48px 24px; text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">🔑</div>
+          <div style="font-family: var(--serif); font-size: 22px; color: var(--text); margin-bottom: 8px;">Prossimamente</div>
+          <div style="color: var(--muted); font-size: 14px; max-width: 360px; margin: 0 auto; line-height: 1.6;">
+            Il servizio di noleggio MUSE sarà disponibile a breve.
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /shell -->
+
+  <!-- ══ IMAGE PREVIEW OVERLAY ══ -->
+  <div id="img-preview" class="img-preview" aria-hidden="true">
+    <div class="prev-top">
+      <div id="prev-counter" class="prev-counter">1 / 1</div>
+      <button id="prev-close" class="prev-btn" type="button">Chiudi</button>
+    </div>
+    <div class="prev-stage" id="prev-stage">
+      <img id="prev-img" alt="Anteprima" />
+    </div>
+    <div class="prev-nav">
+      <button id="prev-prev" class="prev-btn" type="button">‹ Precedente</button>
+      <div class="prev-spacer"></div>
+      <button id="prev-next" class="prev-btn" type="button">Successivo ›</button>
+    </div>
+  </div>
+
+  <!-- ══ MODAL ══ -->
+  <div id="modal" class="modal-overlay" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-panel" role="document">
+      <div class="modal-head">
+        <h2 id="modal-title">Modal</h2>
+        <button id="modal-close-x" class="modal-close" type="button" aria-label="Chiudi">✕</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+      <div id="modal-foot" class="modal-foot"></div>
+    </div>
+  </div>
+
+  <!-- ══ PASSWORD MODAL ══ -->
+  <div id="pw-modal" class="modal-overlay" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-panel" role="document">
+      <div class="modal-head">
+        <h2>Accesso MUSE Besitzer</h2>
+        <button class="modal-close" id="pw-modal-close" type="button" aria-label="Chiudi">✕</button>
+      </div>
+      <div class="modal-body">
+        <label for="pw-input">Password</label>
+        <input id="pw-input" type="password" placeholder="Inserisci la password…" autocomplete="current-password" />
+        <div id="pw-error" class="pw-error">Password non corretta, riprova.</div>
+      </div>
+      <div class="modal-foot">
+        <button class="modal-foot-btn secondary" id="pw-cancel" type="button">Annulla</button>
+        <button class="modal-foot-btn confirm" id="pw-confirm" type="button">Accedi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TOAST CONTAINER ══ -->
+  <!-- Sticky cart bar (mobile) -->
+  <div id="l-cart-bar" class="cart-bar">
+    <span id="l-cart-bar-summary" class="cart-bar-summary"></span>
+    <button id="l-cart-bar-btn" class="btn-primary" type="button">Invia Ordine</button>
+  </div>
+
+  <div id="toast-container" aria-live="polite"></div>
+
+  <script>
+  /* ══════════════════════════════════════════
+     CENTRALIZED CONFIG
+  ══════════════════════════════════════════ */
+  const CONFIG = {
+    pickupSchedule: {
+      'Dolomites':   { ordine: 'Lunedì ore 10:00',  consegna: 'Mercoledì mattina',       ritiro: 'Mercoledì pomeriggio' },
+      'Val Gardena': { ordine: 'Lunedì ore 10:00',  consegna: 'Mercoledì mattina',       ritiro: 'Mercoledì pomeriggio' },
+      'South Tyrol': { ordine: 'Martedì ore 10:00', consegna: 'Giovedì mattina',         ritiro: 'Giovedì pomeriggio' },
+      'Garda':       { ordine: 'Martedì ore 08:00', consegna: 'Giovedì mattina presto',  ritiro: 'Giovedì pomeriggio' }
+    },
+    apartmentIdPattern: /^[A-Za-z0-9]{4,5}$/,
+    repairsRefreshMs: 60000,
+    api: {
+      catalog:       '/catalog.json',
+      verifyPassword:'/api/verify-password',
+      checkout:      '/checkout'
+    },
+    n8n: {
+      list: 'https://museholiday.app.n8n.cloud/webhook/repairs-list',
+      mark: 'https://museholiday.app.n8n.cloud/webhook/repairs-mark',
+      task: 'https://museholiday.app.n8n.cloud/webhook/repairs-task'
+    }
+  };
+
+  /* ══════════════════════════════════════════
+     TAB SWITCHING
+  ══════════════════════════════════════════ */
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const tabSections = document.querySelectorAll('.tab-section');
+
+  let repairsAutoRefresh = null;
+  let activeTab = 'home';
+
+  function switchTab(name) {
+    activeTab = name;
+    tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    tabSections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+    if (name === 'riparazioni' && !repairsLoaded) {
+      repairsLoaded = true;
+      loadRepairsList();
+    }
+    // Auto-refresh repairs when tab is active
+    if (repairsAutoRefresh) { clearInterval(repairsAutoRefresh); repairsAutoRefresh = null; }
+    if (name === 'riparazioni' && repairsLoaded) {
+      repairsAutoRefresh = setInterval(() => loadRepairsList(), CONFIG.repairsRefreshMs);
+    }
+  }
+
+  tabBtns.forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  // Show repairs tab only if ?token= present
+  const urlParams = new URLSearchParams(location.search);
+  const repairsToken = urlParams.get('token');
+  if (repairsToken) {
+    document.getElementById('tab-btn-riparazioni').style.display = '';
+    document.getElementById('hc-riparazioni').style.display = '';
+  }
+
+  /* ══════════════════════════════════════════
+     TOAST
+  ══════════════════════════════════════════ */
+  function showToast(msg, duration = 3200) {
+    const c = document.getElementById('toast-container');
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = msg;
+    c.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('show'));
+    setTimeout(() => {
+      t.classList.remove('show');
+      t.addEventListener('transitionend', () => t.remove(), { once: true });
+    }, duration);
+  }
+
+  /* ══════════════════════════════════════════
+     PRODUCT CATALOGS  (loaded from catalog.json)
+  ══════════════════════════════════════════ */
+  let CATALOG = null;
+  // Catalog is loaded asynchronously; updateLRegions() is called once it arrives.
+  fetch(CONFIG.api.catalog)
+    .then(r => r.json())
+    .then(data => {
+      CATALOG = data;
+      if (window._autoMuseTier) setMuseTier(true);
+      updateLRegions();
+    })
+    .catch(() => console.error('Failed to load catalog.json'));
+
+  /* ══════════════════════════════════════════
+     SHOP FACTORY
+     Shared logic for Prodotti and Lavanderia tabs.
+  ══════════════════════════════════════════ */
+  function makeShop({ prefix, regionEl, productsEl, cartItemsEl, totalEl, checkoutBtn, getCatalog }) {
+    let currentProducts = [];
+    let cart = [];
+
+    function render() {
+      renderProducts(); renderCart();
+    }
+
+    // Product grouping config
+    const PRODUCT_GROUPS = [
+      { label: 'Asciugamani', match: t => /ASCIUGAMANO|SCENDIBAGNO/i.test(t) },
+      { label: 'Lenzuola',    match: t => /LENZUOLO/i.test(t) },
+      { label: 'Federe & Copripiumini', match: t => /FEDERA|COPRIPIUMINO/i.test(t) },
+      { label: 'Altro',       match: () => true },
+    ];
+
+    function extractPack(desc) {
+      const m = (desc || '').match(/(\d+)\s*per\s*Pacco/i);
+      return m ? m[1] + '/pacco' : '';
+    }
+
+    function renderProducts() {
+      productsEl.innerHTML = '';
+      if (!currentProducts.length) return;
+
+      // Group products
+      const groups = PRODUCT_GROUPS.map(g => ({ ...g, items: [] }));
+      for (const p of currentProducts) {
+        const g = groups.find(g => g.match(p.title));
+        if (g) g.items.push(p);
+      }
+
+      for (const group of groups) {
+        if (!group.items.length) continue;
+
+        // Only show headers if there are multiple groups with items
+        const activeGroups = groups.filter(g => g.items.length > 0);
+        if (activeGroups.length > 1) {
+          const header = document.createElement('div');
+          header.className = 'product-group-header';
+          header.innerHTML = `<span class="pg-chevron">▼</span> ${group.label}`;
+          const wrap = document.createElement('div');
+          wrap.className = 'product-group-items';
+          header.addEventListener('click', () => {
+            header.classList.toggle('collapsed');
+            wrap.classList.toggle('collapsed');
+          });
+          productsEl.appendChild(header);
+          group.items.forEach(p => wrap.appendChild(renderProductCard(p)));
+          productsEl.appendChild(wrap);
+        } else {
+          group.items.forEach(p => productsEl.appendChild(renderProductCard(p)));
+        }
+      }
+    }
+
+    function renderProductCard(p) {
+      const line = cart.find(x => x.id === p.id);
+      const qty  = line ? line.qty : 0;
+      const pack = extractPack(p.description);
+      const div  = document.createElement('div');
+      div.className = 'product';
+      div.innerHTML = `
+        <div>
+          <div><strong>${p.title}</strong>${pack ? ` <span class="pack-pill">${pack}</span>` : ''}</div>
+          <div style="margin-top:3px; font-size:15px; font-weight:600; color:var(--green);">€${p.price.toFixed(2)}</div>
+        </div>
+        <div class="qty-control">
+          <button type="button" onclick="${prefix}Shop.remove(${p.id})">−</button>
+          <input type="number" min="0" value="${qty}" onchange="${prefix}Shop.setQty(${p.id}, this.value)"/>
+          <button type="button" onclick="${prefix}Shop.add(${p.id})">+</button>
+        </div>`;
+      div.title = p.description;
+      return div;
+    }
+
+    function renderCart() {
+      cartItemsEl.innerHTML = '';
+      let total = 0;
+      let totalItems = 0;
+      cart.forEach(item => {
+        total += item.qty * item.price;
+        totalItems += item.qty;
+        const div = document.createElement('div');
+        div.className = 'cart-item';
+        div.innerHTML = `
+          <span>${item.title}</span>
+          <div class="qty-control">
+            <button type="button" onclick="${prefix}Shop.remove(${item.id})">−</button>
+            <input type="number" value="${item.qty}" min="0" onchange="${prefix}Shop.setQty(${item.id}, this.value)"/>
+            <button type="button" onclick="${prefix}Shop.add(${item.id})">+</button>
+          </div>`;
+        cartItemsEl.appendChild(div);
+      });
+      totalEl.textContent = total.toFixed(2);
+      checkoutBtn.disabled = cart.length === 0;
+
+      // Update sticky cart bar
+      const bar = document.getElementById('l-cart-bar');
+      const barSummary = document.getElementById('l-cart-bar-summary');
+      const tabSection = document.getElementById('tab-pulizie');
+      if (bar && barSummary && prefix === 'l') {
+        if (cart.length > 0) {
+          barSummary.textContent = `${totalItems} articol${totalItems===1?'o':'i'} — €${total.toFixed(2)}`;
+          bar.classList.add('visible');
+          if (tabSection) tabSection.classList.add('has-cart-bar');
+        } else {
+          bar.classList.remove('visible');
+          if (tabSection) tabSection.classList.remove('has-cart-bar');
+        }
+      }
+
+      // Update tab badge
+      const badge = document.getElementById('l-cart-badge');
+      if (badge && prefix === 'l') {
+        if (totalItems > 0) {
+          badge.textContent = totalItems;
+          badge.classList.add('visible');
+        } else {
+          badge.classList.remove('visible');
+        }
+      }
+    }
+
+    function add(id) {
+      const prod = currentProducts.find(x => x.id === id);
+      if (!prod) return;
+      let line = cart.find(x => x.id === id);
+      if (!line) { line = { ...prod, qty: 0 }; cart.push(line); }
+      line.qty++;
+      render();
+    }
+
+    function remove(id) {
+      cart = cart.map(x => x.id === id ? { ...x, qty: x.qty - 1 } : x).filter(x => x.qty > 0);
+      render();
+    }
+
+    function setQty(id, value) {
+      const q = parseInt(value, 10) || 0;
+      cart = cart.map(x => x.id === id ? { ...x, qty: q } : x).filter(x => x.qty > 0);
+      render();
+    }
+
+    function setRegion(region, keepCart) {
+      const newProducts = getCatalog(region) || [];
+      if (keepCart && cart.length > 0) {
+        // Re-map cart items: keep qty, update price from new catalog, drop items not in new catalog
+        cart = cart.map(item => {
+          const match = newProducts.find(p => p.id === item.id);
+          return match ? { ...match, qty: item.qty } : null;
+        }).filter(Boolean);
+      } else {
+        cart = [];
+      }
+      currentProducts = newProducts;
+      render();
+    }
+
+    function getCart() { return cart; }
+    function clearCart() { cart = []; render(); }
+
+    // Wire region change
+    regionEl.addEventListener('change', () => setRegion(regionEl.value));
+
+    return { add, remove, setQty, setRegion, getCart, clearCart };
+  }
+
+  /* ══════════════════════════════════════════
+     SHARED TIER STATE
+  ══════════════════════════════════════════ */
+  let isMuseTier = false; // shared across all tabs
+
+  function setMuseTier(active) {
+    isMuseTier = active;
+    // Update tier toggle labels and visibility
+    document.getElementById('l-tier-name').textContent = active ? 'MUSE Besitzer' : 'Standard';
+    document.getElementById('l-tier-toggle-btn').textContent = active ? 'Torna a prezzi standard' : 'Accedi come MUSE Besitzer';
+    // Hide the entire tier bar for MUSE owners — it's an upgrade, no need to show toggle
+    document.querySelector('.tier-bar').style.display = active ? 'none' : '';
+    // Noleggio is MUSE-only: show nav button + home card when active, hide otherwise
+    const noleggioBtn = document.getElementById('tab-btn-noleggio');
+    const noleggioCard = document.getElementById('hc-noleggio');
+    if (noleggioBtn)  noleggioBtn.style.display  = active ? '' : 'none';
+    if (noleggioCard) noleggioCard.style.display = active ? '' : 'none';
+    // If user downgrades while on the Noleggio tab, bounce back home
+    if (!active && activeTab === 'noleggio') switchTab('home');
+    // Update the persistent MUSE login/logout button in the top nav
+    const navAuthBtn = document.getElementById('nav-auth-btn');
+    if (navAuthBtn) {
+      navAuthBtn.textContent = active ? 'MUSE ✓' : 'Accedi MUSE';
+      navAuthBtn.classList.toggle('is-muse', active);
+      navAuthBtn.setAttribute('aria-label', active ? 'Esci da MUSE' : 'Accedi come MUSE Besitzer');
+    }
+    // Swap NOME label/placeholder for MUSE owners
+    const nameLabel = document.querySelector('label[for="l-name"]');
+    const nameInput = document.getElementById('l-name');
+    if (active) {
+      nameLabel.textContent = 'Appartamento & ID';
+      nameInput.placeholder = 'Nome appartamento e ID';
+    } else {
+      nameLabel.textContent = 'Nome';
+      nameInput.placeholder = 'Il tuo nome';
+    }
+    updateLRegions();
+    // Re-evaluate preventivo visibility when tier changes
+    if (typeof updateLCleaningVisibility === 'function') updateLCleaningVisibility();
+  }
+
+  /* ══════════════════════════════════════════
+     WELCOME MODAL
+  ══════════════════════════════════════════ */
+  const welcomeModal = document.getElementById('welcome-modal');
+  const wcStep1      = document.getElementById('welcome-step1');
+  const wcStep2      = document.getElementById('welcome-step2');
+  const wcPwInput    = document.getElementById('wc-pw-input');
+  const wcPwError    = document.getElementById('wc-pw-error');
+  const wcPwConfirm  = document.getElementById('wc-pw-confirm');
+
+  function closeWelcome() {
+    welcomeModal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function showWelcomeStep2() {
+    wcStep1.style.display = 'none';
+    wcStep2.classList.add('visible');
+    setTimeout(() => wcPwInput.focus(), 0);
+  }
+
+  function showWelcomeStep1() {
+    wcStep2.classList.remove('visible');
+    wcStep1.style.display = '';
+    wcPwInput.value = '';
+    wcPwError.style.display = 'none';
+  }
+
+  async function verifyPassword(pw) {
+    try {
+      const res = await fetch(CONFIG.api.verifyPassword, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ password: pw })
+      });
+      const data = await res.json();
+      return data.ok === true;
+    } catch { return false; }
+  }
+
+  // External: close welcome, stay on standard tier
+  document.getElementById('wc-external').addEventListener('click', () => {
+    localStorage.setItem('museAccess', 'external');
+    closeWelcome();
+  });
+
+  // MUSE: go to password step
+  document.getElementById('wc-muse').addEventListener('click', showWelcomeStep2);
+
+  // Back button
+  document.getElementById('wc-back').addEventListener('click', showWelcomeStep1);
+
+  // Confirm password in welcome modal
+  wcPwConfirm.addEventListener('click', async () => {
+    const pw = wcPwInput.value;
+    if (!pw) { wcPwInput.focus(); return; }
+    wcPwConfirm.disabled = true; wcPwConfirm.textContent = '…';
+    const ok = await verifyPassword(pw);
+    wcPwConfirm.disabled = false; wcPwConfirm.textContent = 'Accedi →';
+    if (ok) {
+      localStorage.setItem('museAccess', 'muse');
+      setMuseTier(true);
+      closeWelcome();
+      showToast('Benvenuto! Prezzi MUSE Besitzer attivati.');
+    } else {
+      wcPwError.style.display = 'block';
+      wcPwInput.select();
+    }
+  });
+
+  wcPwInput.addEventListener('keydown', e => { if (e.key === 'Enter') wcPwConfirm.click(); });
+
+  // Decide whether to show welcome modal or skip it
+  const savedAccess = localStorage.getItem('museAccess');
+  if (repairsToken) {
+    // Token in URL → user is owner, skip welcome, auto-activate MUSE tier
+    welcomeModal.style.display = 'none';
+    document.body.style.overflow = '';
+    window._autoMuseTier = true;
+  } else if (savedAccess) {
+    // Returning user — skip welcome, restore tier from localStorage
+    welcomeModal.style.display = 'none';
+    document.body.style.overflow = '';
+    if (savedAccess === 'muse') window._autoMuseTier = true;
+  } else {
+    // First visit — show welcome on load
+    document.body.style.overflow = 'hidden';
+  }
+
+  /* ══════════════════════════════════════════
+     IN-PAGE TIER TOGGLE (for switching later)
+  ══════════════════════════════════════════ */
+  const pwModal      = document.getElementById('pw-modal');
+  const pwInput      = document.getElementById('pw-input');
+  const pwError      = document.getElementById('pw-error');
+  const pwConfirm    = document.getElementById('pw-confirm');
+  const pwCancel     = document.getElementById('pw-cancel');
+  const pwModalClose = document.getElementById('pw-modal-close');
+  let pwResolve = null;
+
+  function openPwModal(onSuccess) {
+    pwInput.value = ''; pwError.style.display = 'none';
+    pwResolve = onSuccess;
+    pwModal.classList.add('open');
+    pwModal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => pwInput.focus(), 0);
+  }
+
+  function closePwModal() {
+    pwModal.classList.remove('open');
+    pwModal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    pwResolve = null;
+  }
+
+  pwConfirm.addEventListener('click', async () => {
+    const pw = pwInput.value;
+    if (!pw) { pwInput.focus(); return; }
+    pwConfirm.disabled = true; pwConfirm.textContent = '…';
+    const ok = await verifyPassword(pw);
+    pwConfirm.disabled = false; pwConfirm.textContent = 'Accedi';
+    if (ok) { const cb = pwResolve; closePwModal(); if (cb) cb(); }
+    else { pwError.style.display = 'block'; pwInput.select(); }
+  });
+
+  pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') pwConfirm.click(); });
+  pwCancel.addEventListener('click', closePwModal);
+  pwModalClose.addEventListener('click', closePwModal);
+  pwModal.addEventListener('click', e => { if (e.target === pwModal) closePwModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && pwModal.classList.contains('open')) closePwModal();
+  });
+
+  /* ══════════════════════════════════════════
+     LAVANDERIA & PULIZIE TAB
+  ══════════════════════════════════════════ */
+  const lTierToggleBtn = document.getElementById('l-tier-toggle-btn');
+
+  function updateLRegions() {
+    if (!CATALOG) return;
+    const sel  = document.getElementById('l-region');
+    const prev = sel.value || localStorage.getItem('museRegion') || '';
+    sel.innerHTML = '<option value="">Seleziona regione…</option>';
+    const regions = Object.keys(isMuseTier ? CATALOG.muse : CATALOG.external);
+    regions.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r; opt.textContent = r;
+      sel.appendChild(opt);
+    });
+    const keepCart = regions.includes(prev);
+    if (keepCart) sel.value = prev;
+    lShop.setRegion(sel.value, keepCart);
+    updateLCleaningVisibility();
+  }
+
+  function updateLCleaningVisibility() {
+    const region = document.getElementById('l-region').value;
+    // Pickup schedule hint
+    const sched = CONFIG.pickupSchedule[region];
+    const hintEl = document.getElementById('l-schedule-hint');
+    if (sched) {
+      document.getElementById('l-schedule-region').textContent = region;
+      document.getElementById('l-schedule-details').innerHTML =
+        `📦 <strong>Scadenza ordine:</strong> ${sched.ordine}<br/>` +
+        `🔄 <strong>Ritiro da ospite:</strong> ${sched.ritiro}`;
+      hintEl.style.display = 'block';
+    } else {
+      hintEl.style.display = 'none';
+    }
+    // Preventivo (cleaning quote) toggle — MUSE + Val Gardena only
+    const isVG = region === 'Val Gardena';
+    const toggleEl  = document.getElementById('l-vg-toggle');
+    const quoteBox  = document.getElementById('l-vg-quote');
+    const drawerEl  = document.getElementById('l-cleaning-drawer');
+    const dateEl    = document.getElementById('l-clean-date');
+    const showToggle = isVG && isMuseTier;
+    toggleEl.style.display = showToggle ? 'block' : 'none';
+    quoteBox.style.display = (showToggle && drawerEl.checked) ? 'block' : 'none';
+    if (showToggle && dateEl && !dateEl.min) {
+      // Set min date to today + 72h + 1 day (server enforces exact rule)
+      const hint = new Date(Date.now() + (72 + 24) * 60 * 60 * 1000);
+      const yyyy = hint.getFullYear();
+      const mm   = String(hint.getMonth() + 1).padStart(2, '0');
+      const dd   = String(hint.getDate()).padStart(2, '0');
+      dateEl.min = `${yyyy}-${mm}-${dd}`;
+    }
+  }
+
+  lTierToggleBtn.addEventListener('click', () => {
+    if (isMuseTier) { setMuseTier(false); localStorage.setItem('museAccess', 'external'); return; }
+    openPwModal(() => {
+      localStorage.setItem('museAccess', 'muse');
+      setMuseTier(true);
+      showToast('Prezzi MUSE Besitzer attivati.');
+    });
+  });
+
+  // Persistent MUSE login/logout button in the top nav
+  const navAuthBtn = document.getElementById('nav-auth-btn');
+  if (navAuthBtn) {
+    navAuthBtn.addEventListener('click', () => {
+      if (isMuseTier) {
+        setMuseTier(false);
+        localStorage.setItem('museAccess', 'external');
+        showToast('Disconnesso da MUSE.');
+        return;
+      }
+      openPwModal(() => {
+        localStorage.setItem('museAccess', 'muse');
+        setMuseTier(true);
+        showToast('Accesso MUSE attivato.');
+      });
+    });
+  }
+
+  const lShop = makeShop({
+    prefix: 'l',
+    regionEl: document.getElementById('l-region'),
+    productsEl: document.getElementById('l-products'),
+    cartItemsEl: document.getElementById('l-cart-items'),
+    totalEl: document.getElementById('l-total'),
+    checkoutBtn: document.getElementById('l-checkout'),
+    getCatalog: (r) => (isMuseTier ? CATALOG.muse : CATALOG.external)[r] || [],
+  });
+
+  window.lShop = lShop;
+
+  document.getElementById('l-region').addEventListener('change', () => {
+    const r = document.getElementById('l-region').value;
+    if (r) localStorage.setItem('museRegion', r);
+    updateLCleaningVisibility();
+  });
+
+  // Preventivo drawer toggle (expand/collapse the form)
+  document.getElementById('l-cleaning-drawer').addEventListener('change', updateLCleaningVisibility);
+
+  // Preventivo send button — POST /cleaning-quote (auth cookie is sent automatically)
+  document.getElementById('l-send-quote').addEventListener('click', async () => {
+    const region = document.getElementById('l-region').value;
+    const name   = document.getElementById('l-name').value.trim();
+    const email  = document.getElementById('l-email').value.trim();
+    const apartmentId = document.getElementById('l-apt-id').value.trim();
+    const dateISO     = document.getElementById('l-clean-date').value;
+
+    if (region !== 'Val Gardena') return showToast('Disponibile solo per Val Gardena.');
+    if (!CONFIG.apartmentIdPattern.test(apartmentId)) return showToast('ID appartamento non valido (4–5 caratteri).');
+    if (!dateISO) return showToast('Seleziona una data.');
+    if (!name || !email) return showToast('Inserisci nome ed email (usati per la conferma).');
+
+    const btn = document.getElementById('l-send-quote');
+    btn.disabled = true; btn.textContent = 'Invio in corso…';
+    try {
+      const res = await fetch('/cleaning-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ region, name, email, apartmentId, dateISO })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Richiesta inviata! Riceverai conferma via email (richiesta ≠ conferma).');
+        document.getElementById('l-apt-id').value = '';
+        document.getElementById('l-clean-date').value = '';
+        document.getElementById('l-cleaning-drawer').checked = false;
+        updateLCleaningVisibility();
+      } else {
+        showToast(data.error || 'Errore nella richiesta.');
+      }
+    } catch {
+      showToast('Errore di rete, riprova.');
+    }
+    btn.disabled = false; btn.textContent = 'Richiedi Preventivo';
+  });
+
+
+  // Lavanderia checkout
+  let lSubmitting = false;
+  document.getElementById('l-checkout').addEventListener('click', async () => {
+    if (lSubmitting) return;
+    const region = document.getElementById('l-region').value;
+    const name   = document.getElementById('l-name').value.trim();
+    const email  = document.getElementById('l-email').value.trim();
+    const cart   = lShop.getCart();
+
+    if (!region || !name || !email || cart.length === 0) {
+      showToast('Per inviare un ordine: scegli regione, inserisci nome ed email e aggiungi almeno un prodotto.');
+      return;
+    }
+
+    lSubmitting = true;
+    const btn = document.getElementById('l-checkout');
+    btn.disabled = true; btn.textContent = 'Invio in corso…';
+
+    try {
+      const res = await fetch(CONFIG.api.checkout, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ region, name, email, cartJson: JSON.stringify(cart) })
+      });
+      const { success } = await res.json();
+      if (success) { showToast('Ordine inviato! Controlla la tua email.'); lShop.clearCart(); }
+      else showToast('Errore nell\'invio—riprovare.');
+    } catch { showToast('Errore di rete—riprovare.'); }
+
+    btn.disabled = lShop.getCart().length === 0;
+    btn.textContent = 'Invia Ordine';
+    lSubmitting = false;
+  });
+
+
+  /* ══════════════════════════════════════════
+     RIPARAZIONI TAB
+  ══════════════════════════════════════════ */
+  const LIST_URL = CONFIG.n8n.list;
+  const MARK_URL = CONFIG.n8n.mark;
+  const TASK_URL = CONFIG.n8n.task;
+
+  const rListEl      = document.getElementById('r-list');
+  const rMsgEl       = document.getElementById('r-msg');
+  const rBadgeEl     = document.getElementById('r-badge');
+  const rSubEl       = document.getElementById('r-sub');
+  const rRefreshBtn  = document.getElementById('r-refresh');
+  const rToggleBtn   = document.getElementById('r-toggle-done');
+
+  let repairsLoaded = false;
+  let lastRepairsData = null;
+  let showDone = false;
+
+  const ORDER_STATUS = { 'IN CORSO': 1, 'RIFIUTATO': 2, 'COMPLETATO': 3 };
+  function normStatus(s) { return (s || '').toString().trim().toUpperCase(); }
+  function isTerminal(s) { const n = normStatus(s); return n === 'RIFIUTATO' || n === 'COMPLETATO'; }
+  function canMove(cur, next) {
+    if (isTerminal(cur)) return false;
+    const c = ORDER_STATUS[normStatus(cur)] || 0;
+    const n = ORDER_STATUS[normStatus(next)] || 0;
+    return n > c && n > 0;
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getFullYear()).slice(-2)}`;
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const diff = Date.now() - d.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return mins <= 1 ? 'adesso' : `${mins} min fa`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} or${hrs===1?'a':'e'} fa`;
+    const days = Math.floor(hrs / 24);
+    if (days < 30) return `${days} giorn${days===1?'o':'i'} fa`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months} mes${months===1?'e':'i'} fa`;
+    return fmtDate(iso);
+  }
+
+  function getOwnerComment(t) {
+    const v =
+      t?.ownerComment ??
+      t?.custom_fields?.ownerComment ??
+      t?.custom_fields?.['Owner comment'] ??
+      t?.customFields?.ownerComment ??
+      t?.customFields?.['Owner comment'] ??
+      t?.custom_fields?.find?.(f => (f.name||'').toLowerCase() === 'owner comment')?.value ??
+      '';
+    return (v ?? '').toString().trim();
+  }
+
+  function rSetError(msg) {
+    rMsgEl.className = 'repairs-error';
+    rMsgEl.textContent = msg;
+  }
+  function rClearMsg() {
+    rMsgEl.className = '';
+    rMsgEl.textContent = '';
+  }
+
+  if (repairsToken) {
+    rRefreshBtn.addEventListener('click', loadRepairsList);
+
+    rToggleBtn.addEventListener('click', () => {
+      showDone = !showDone;
+      rToggleBtn.textContent = showDone ? '✓ Completati / Rifiutati' : 'Mostra completati / rifiutati';
+      rToggleBtn.classList.toggle('active', showDone);
+      renderRepairs(lastRepairsData);
+    });
+  } else {
+    rBadgeEl.textContent = 'Token mancante';
+  }
+
+  function loadRepairsList() {
+    rClearMsg();
+    rBadgeEl.textContent = 'Caricamento…';
+    rListEl.innerHTML = '';
+
+    fetch(LIST_URL + '?token=' + encodeURIComponent(repairsToken))
+      .then(r => r.json())
+      .then(data => {
+        lastRepairsData = data;
+        renderRepairs(data);
+        const now = new Date();
+        document.getElementById('r-last-updated').textContent =
+          `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      })
+      .catch(() => {
+        rBadgeEl.textContent = 'Errore';
+        rSetError('Impossibile caricare la lista riparazioni.');
+      });
+  }
+
+  async function refreshOneRepair(subtaskId) {
+    const r = await fetch(TASK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: repairsToken, subtaskId })
+    });
+    let t = null;
+    try { const txt = await r.text(); t = txt ? JSON.parse(txt) : null; } catch {}
+    if (!t) return loadRepairsList(); // fallback to full reload if API returned nothing
+    if (!lastRepairsData || !Array.isArray(lastRepairsData.subtasks)) return;
+    const idx = lastRepairsData.subtasks.findIndex(x => String(x.id) === String(subtaskId));
+    if (idx >= 0) lastRepairsData.subtasks[idx] = t;
+    else lastRepairsData.subtasks.unshift(t);
+    renderRepairs(lastRepairsData);
+  }
+
+  function renderRepairs(data) {
+    if (!data) return;
+    rSubEl.textContent = data.parent?.name || '';
+
+    const all = Array.isArray(data.subtasks) ? data.subtasks : [];
+    const closedCount = all.filter(t => { const s = normStatus(t.status); return s === 'COMPLETATO' || s === 'RIFIUTATO'; }).length;
+    const openCount = all.length - closedCount;
+    const visible = showDone ? all : all.filter(t => { const s = normStatus(t.status); return s !== 'COMPLETATO' && s !== 'RIFIUTATO'; });
+
+    rBadgeEl.textContent = showDone
+      ? `${all.length} totali (${closedCount} chiusi)`
+      : `${openCount} aperti` + (closedCount ? ` • ${closedCount} nascosti` : '');
+    rListEl.innerHTML = '';
+
+    if (!visible.length) {
+      const el = document.createElement('div');
+      el.className = 'repairs-empty';
+      el.textContent = showDone ? 'Nessun elemento' : 'Nessun elemento aperto';
+      rListEl.appendChild(el);
+      return;
+    }
+
+    // Sort by urgency: COMUNICATO → CONSIGLIO → IN CORSO → terminal
+    const STATUS_PRIORITY = { 'COMUNICATO': 0, 'CONSIGLIO': 1, 'IN CORSO': 2, 'RIFIUTATO': 3, 'COMPLETATO': 4 };
+    visible.sort((a, b) => {
+      const pa = STATUS_PRIORITY[normStatus(a.status)] ?? 3;
+      const pb = STATUS_PRIORITY[normStatus(b.status)] ?? 3;
+      if (pa !== pb) return pa - pb;
+      return new Date(b.dateCreatedIso || 0) - new Date(a.dateCreatedIso || 0);
+    });
+
+    // Group by apartment (parse "108A - description" → "108A")
+    function parseApt(name) {
+      if (!name) return 'Altro';
+      const m = name.match(/^(\S+)\s*[-–—]/);
+      return m ? m[1] : 'Altro';
+    }
+    const groups = new Map();
+    for (const t of visible) {
+      const apt = parseApt(t.name);
+      if (!groups.has(apt)) groups.set(apt, []);
+      groups.get(apt).push(t);
+    }
+    // Sort groups: alphabetically, "Altro" last
+    const sortedGroups = [...groups.entries()].sort((a, b) => {
+      if (a[0] === 'Altro') return 1;
+      if (b[0] === 'Altro') return -1;
+      return a[0].localeCompare(b[0]);
+    });
+
+    // Render each group
+    for (const [apt, items] of sortedGroups) {
+      const openInGroup = items.filter(t => !isTerminal(normStatus(t.status))).length;
+
+      // Only show group headers if there are multiple groups
+      if (sortedGroups.length > 1) {
+        const header = document.createElement('div');
+        header.className = 'repairs-group-header';
+        header.innerHTML = `<span class="group-chevron">▼</span> ${apt} <span class="group-count">${openInGroup} apert${openInGroup===1?'o':'i'}</span>`;
+        const cardsWrap = document.createElement('div');
+        cardsWrap.className = 'repairs-group-cards';
+        header.addEventListener('click', () => {
+          header.classList.toggle('collapsed');
+          cardsWrap.classList.toggle('collapsed');
+        });
+        rListEl.appendChild(header);
+        rListEl.appendChild(cardsWrap);
+        for (const t of items) cardsWrap.appendChild(renderOneCard(t));
+      } else {
+        for (const t of items) rListEl.appendChild(renderOneCard(t));
+      }
+    }
+  }
+
+  function renderOneCard(t) {
+      const card = document.createElement('div');
+      card.className = 'repair-card';
+      const stNorm = normStatus(t.status);
+      const stKey = (t.status || '').toString().trim().toLowerCase().replace(/\s+/g, '-');
+      card.classList.add('status-' + stKey);
+
+      const top = document.createElement('div');
+      top.className = 'card-row-top';
+      const left = document.createElement('div');
+      left.className = 'card-left';
+
+      // Title row with status pill
+      const titleRow = document.createElement('div');
+      titleRow.style.cssText = 'display:flex; align-items:center; gap:10px; flex-wrap:wrap;';
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'card-title';
+      titleEl.textContent = t.name || '(senza titolo)';
+
+      const pill = document.createElement('span');
+      pill.className = 'status-pill status-pill--' + stKey;
+      pill.textContent = t.status || '—';
+
+      titleRow.appendChild(titleEl);
+      titleRow.appendChild(pill);
+
+      // Date as relative time
+      const dateLine = document.createElement('div');
+      dateLine.className = 'card-status';
+      const ago = timeAgo(t.dateCreatedIso);
+      dateLine.textContent = ago || '';
+
+      const ocText = getOwnerComment(t);
+
+      left.appendChild(titleRow);
+      left.appendChild(dateLine);
+
+      if (t.description) {
+        const desc = document.createElement('div');
+        desc.className = 'card-desc';
+        desc.textContent = t.description;
+        left.appendChild(desc);
+      }
+
+      if (ocText) {
+        const oc = document.createElement('div');
+        oc.className = 'owner-comment';
+        const lab = document.createElement('div');
+        lab.className = 'oc-label';
+        lab.textContent = 'Nota proprietario';
+        const val = document.createElement('div');
+        val.textContent = ocText;
+        oc.appendChild(lab);
+        oc.appendChild(val);
+        left.appendChild(oc);
+      }
+
+      top.appendChild(left);
+      card.appendChild(top);
+
+      if (Array.isArray(t.images) && t.images.length) {
+        const imgs = document.createElement('div');
+        imgs.className = 'card-images';
+        t.images.forEach((url, idx) => {
+          const img = document.createElement('img');
+          img.src = url;
+          img.alt = 'Foto allegata';
+          img.addEventListener('click', () => openImgPreview(t.images, idx));
+          imgs.appendChild(img);
+        });
+        card.appendChild(imgs);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'card-actions';
+
+      if (isTerminal(stNorm)) {
+        // No actions for terminal states — pill already shows status
+        card.appendChild(actions);
+        return card;
+      }
+
+      // Only show relevant transitions with friendly labels
+      const allBtns = [];
+
+      if (canMove(stNorm, 'IN CORSO')) {
+        const btn = makeActionBtn('Prendi in carico', 'action-btn btn-neutral');
+        btn.addEventListener('click', () => setRepairStatus(t.id, 'IN CORSO', '', allBtns));
+        allBtns.push(btn);
+        actions.appendChild(btn);
+      }
+
+      if (canMove(stNorm, 'RIFIUTATO')) {
+        const btn = makeActionBtn('Rifiuta', 'action-btn btn-danger');
+        btn.addEventListener('click', async () => {
+          const reason = await refusalReasonModal();
+          if (reason === null) return;
+          const ok = await confirmModal({
+            title: 'Conferma rifiuto',
+            message: 'Vuoi rifiutare questo intervento? L\'azione è irreversibile.',
+            danger: true,
+            confirmLabel: 'Rifiuta',
+            cancelLabel: 'Annulla'
+          });
+          if (!ok) return;
+          setRepairStatus(t.id, 'RIFIUTATO', reason, allBtns);
+        });
+        allBtns.push(btn);
+        actions.appendChild(btn);
+      }
+
+      if (canMove(stNorm, 'COMPLETATO')) {
+        const btn = makeActionBtn('Completa', 'action-btn btn-confirm');
+        btn.addEventListener('click', async () => {
+          const ok = await confirmModal({
+            title: 'Conferma completamento',
+            message: 'Segnare come completato? L\'azione è irreversibile.',
+            danger: false,
+            confirmLabel: 'Completa',
+            cancelLabel: 'Annulla'
+          });
+          if (!ok) return;
+          setRepairStatus(t.id, 'COMPLETATO', '', allBtns);
+        });
+        allBtns.push(btn);
+        actions.appendChild(btn);
+      }
+
+      card.appendChild(actions);
+      return card;
+  }
+
+  function makeActionBtn(label, className) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = className;
+    b.textContent = label;
+    return b;
+  }
+
+  function setRepairStatus(subtaskId, status, commentText, buttons) {
+    rClearMsg();
+    buttons.forEach(b => b.disabled = true);
+
+    fetch(MARK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: repairsToken, subtaskId, status, commentText })
+    })
+      .then(async r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        showToast(`Stato impostato su ${status}.`);
+        return refreshOneRepair(subtaskId);
+      })
+      .catch(() => {
+        buttons.forEach(b => b.disabled = false);
+        rSetError('Impossibile salvare lo stato. Riprova.');
+        showToast('Errore nel salvataggio dello stato.');
+      });
+  }
+
+  /* ── Modal (shared) ── */
+  const modal     = document.getElementById('modal');
+  const modalTitle= document.getElementById('modal-title');
+  const modalBody = document.getElementById('modal-body');
+  const modalFoot = document.getElementById('modal-foot');
+  const modalCloseX = document.getElementById('modal-close-x');
+  let modalResolver = null;
+
+  function closeModal(result = null) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    if (modalResolver) { modalResolver(result); modalResolver = null; }
+  }
+
+  modalCloseX.addEventListener('click', () => closeModal(null));
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(null); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (modal.classList.contains('open')) closeModal(null);
+    }
+  });
+
+  async function confirmModal({ title, message, danger = false, confirmLabel = 'Conferma', cancelLabel = 'Annulla' }) {
+    modalTitle.textContent = title || '';
+    modalBody.innerHTML = '';
+    const p = document.createElement('p');
+    p.className = 'modal-msg';
+    p.textContent = message || '';
+    modalBody.appendChild(p);
+    modalFoot.innerHTML = '';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'modal-foot-btn secondary';
+    cancelBtn.textContent = cancelLabel;
+    cancelBtn.addEventListener('click', () => closeModal(false));
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'modal-foot-btn ' + (danger ? 'danger' : 'confirm');
+    confirmBtn.textContent = confirmLabel;
+    confirmBtn.addEventListener('click', () => closeModal(true));
+
+    modalFoot.appendChild(cancelBtn);
+    modalFoot.appendChild(confirmBtn);
+
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    confirmBtn.focus();
+
+    return new Promise(resolve => { modalResolver = resolve; });
+  }
+
+  async function refusalReasonModal() {
+    modalTitle.textContent = 'Motivo del rifiuto';
+    modalBody.innerHTML = '';
+    modalFoot.innerHTML = '';
+
+    const ta = document.createElement('textarea');
+    ta.className = 'modal-textarea';
+    ta.placeholder = 'Scrivi il motivo del rifiuto…';
+    ta.maxLength = 500;
+
+    const hint = document.createElement('div');
+    hint.className = 'modal-hint';
+    hint.textContent = 'Richiesto. Max 500 caratteri.';
+
+    modalBody.appendChild(ta);
+    modalBody.appendChild(hint);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'modal-foot-btn secondary';
+    cancelBtn.textContent = 'Annulla';
+    cancelBtn.addEventListener('click', () => closeModal(null));
+
+    const okBtn = document.createElement('button');
+    okBtn.type = 'button';
+    okBtn.className = 'modal-foot-btn danger';
+    okBtn.textContent = 'Continua';
+    okBtn.addEventListener('click', () => {
+      const v = ta.value.trim();
+      if (!v) { ta.focus(); showToast('Inserisci un motivo prima di continuare.'); return; }
+      closeModal(v);
+    });
+
+    modalFoot.appendChild(cancelBtn);
+    modalFoot.appendChild(okBtn);
+
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => ta.focus(), 0);
+
+    return new Promise(resolve => { modalResolver = resolve; });
+  }
+
+  /* ── Image preview ── */
+  const imgPreview  = document.getElementById('img-preview');
+  const prevImg     = document.getElementById('prev-img');
+  const prevStage   = document.getElementById('prev-stage');
+  const prevClose   = document.getElementById('prev-close');
+  const prevPrev    = document.getElementById('prev-prev');
+  const prevNext    = document.getElementById('prev-next');
+  const prevCounter = document.getElementById('prev-counter');
+
+  let prevList = [], prevIdx = 0, zoom = 1;
+  const ZOOM_MIN = 1, ZOOM_MAX = 4;
+
+  function openImgPreview(urls, start) {
+    prevList = urls.slice();
+    prevIdx  = Math.max(0, Math.min(start || 0, prevList.length - 1));
+    setZoom(1); renderPrev();
+    imgPreview.classList.add('open');
+    imgPreview.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeImgPreview() {
+    imgPreview.classList.remove('open');
+    imgPreview.setAttribute('aria-hidden', 'true');
+    prevImg.src = ''; prevList = []; prevIdx = 0; setZoom(1);
+    document.body.style.overflow = '';
+  }
+
+  function renderPrev() {
+    if (!prevList.length) return;
+    prevImg.src = prevList[prevIdx];
+    prevCounter.textContent = `${prevIdx + 1} / ${prevList.length}`;
+    prevPrev.disabled = prevIdx <= 0;
+    prevNext.disabled = prevIdx >= prevList.length - 1;
+  }
+
+  function setZoom(z) {
+    zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+    prevImg.style.transform = `scale(${zoom.toFixed(3)})`;
+  }
+
+  prevClose.addEventListener('click', closeImgPreview);
+  prevPrev.addEventListener('click', () => { if (prevIdx > 0) { prevIdx--; setZoom(1); renderPrev(); } });
+  prevNext.addEventListener('click', () => { if (prevIdx < prevList.length - 1) { prevIdx++; setZoom(1); renderPrev(); } });
+  imgPreview.addEventListener('click', e => { if (e.target === imgPreview || e.target === prevStage) closeImgPreview(); });
+
+  imgPreview.addEventListener('wheel', e => {
+    if (!imgPreview.classList.contains('open')) return;
+    e.preventDefault();
+    setZoom(zoom + (Math.sign(e.deltaY) > 0 ? -0.15 : 0.15));
+  }, { passive: false });
+
+  prevImg.addEventListener('dblclick', () => setZoom(zoom > 1 ? 1 : 2));
+
+  let pinchStart = 0, pinchZoomStart = 1;
+  imgPreview.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      pinchStart = touchDist(e.touches[0], e.touches[1]);
+      pinchZoomStart = zoom;
+    }
+  }, { passive: true });
+
+  imgPreview.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const d = touchDist(e.touches[0], e.touches[1]);
+      if (pinchStart) setZoom(pinchZoomStart * d / pinchStart);
+    }
+  }, { passive: false });
+
+  document.addEventListener('keydown', e => {
+    if (imgPreview.classList.contains('open')) {
+      if (e.key === 'Escape') closeImgPreview();
+      if (e.key === 'ArrowLeft')  { if (prevIdx > 0) { prevIdx--; setZoom(1); renderPrev(); } }
+      if (e.key === 'ArrowRight') { if (prevIdx < prevList.length - 1) { prevIdx++; setZoom(1); renderPrev(); } }
+    }
+  });
+
+  function touchDist(t1, t2) {
+    return Math.sqrt((t1.clientX-t2.clientX)**2 + (t1.clientY-t2.clientY)**2);
+  }
+
+  /* ══════════════════════════════════════════
+     STICKY CART BAR — wire button
+  ══════════════════════════════════════════ */
+  document.getElementById('l-cart-bar-btn').addEventListener('click', () => {
+    document.getElementById('l-checkout').click();
+  });
+
+  /* ══════════════════════════════════════════
+     OFFLINE DETECTION
+  ══════════════════════════════════════════ */
+  const offlineBar = document.getElementById('offline-bar');
+  function updateOnlineStatus() {
+    offlineBar.classList.toggle('visible', !navigator.onLine);
+  }
+  window.addEventListener('online', updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+  updateOnlineStatus();
+
+  /* ══════════════════════════════════════════
+     SWIPE BETWEEN TABS (mobile gesture)
+  ══════════════════════════════════════════ */
+  (function() {
+    const TAB_ORDER = ['home', 'prodotti', 'pulizie'];
+    // Add riparazioni only if token present
+    if (repairsToken) TAB_ORDER.push('riparazioni');
+
+    let swipeStartX = 0, swipeStartY = 0, swipeStartTime = 0;
+
+    document.querySelector('.shell').addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      swipeStartX = e.touches[0].clientX;
+      swipeStartY = e.touches[0].clientY;
+      swipeStartTime = Date.now();
+    }, { passive: true });
+
+    document.querySelector('.shell').addEventListener('touchend', e => {
+      if (e.changedTouches.length !== 1) return;
+      const dx = e.changedTouches[0].clientX - swipeStartX;
+      const dy = e.changedTouches[0].clientY - swipeStartY;
+      const dt = Date.now() - swipeStartTime;
+      // Must be horizontal (|dx| > |dy|), at least 60px, within 400ms
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5 || dt > 400) return;
+
+      const currentIdx = TAB_ORDER.indexOf(activeTab);
+      if (currentIdx < 0) return;
+      const nextIdx = dx < 0 ? currentIdx + 1 : currentIdx - 1;
+      if (nextIdx >= 0 && nextIdx < TAB_ORDER.length) {
+        switchTab(TAB_ORDER[nextIdx]);
+      }
+    }, { passive: true });
+  })();
+
+  </script>
+</body>
+</html>
