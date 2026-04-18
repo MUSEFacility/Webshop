@@ -5,8 +5,19 @@ const bodyParser = require('body-parser');
 const nodemailer = require('nodemailer');
 const path       = require('path');
 const crypto     = require('crypto');
+const db         = require('./db');
 
 const app = express();
+
+/* ── slug helper for stable product identity across price changes ── */
+function slug(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'unknown';
+}
 
 /* ── HTML-escape helper (prevents XSS in email templates) ── */
 function esc(s) {
@@ -223,6 +234,36 @@ app.post('/checkout', async (req, res) => {
       html:    emailWrap(summaryHtml)
     });
 
+    // Analytics write — fire-and-forget. D1 mirrors the email; failures don't block checkout.
+    setImmediate(async () => {
+      if (!db.isConfigured()) return;
+      try {
+        const orderId = crypto.randomUUID();
+        const createdAt = Date.now();
+        const totalCents = Math.round(total * 100);
+        const itemCount = cart.reduce((n, it) => n + (Number(it.qty) || 0), 0);
+
+        const statements = [{
+          sql: `INSERT INTO orders (id, created_at, region, customer_name, customer_email, total_cents, item_count, source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'external')`,
+          params: [orderId, createdAt, region || '', name || '', email || '', totalCents, itemCount]
+        }];
+        cart.forEach(it => {
+          const qty = Number(it.qty) || 0;
+          const unitCents = Math.round((Number(it.price) || 0) * 100);
+          const productId = slug(it.title);
+          statements.push({
+            sql: `INSERT INTO order_items (order_id, product_id, product_title, qty, unit_price_cents, line_total_cents)
+                  VALUES (?, ?, ?, ?, ?, ?)`,
+            params: [orderId, productId, String(it.title || ''), qty, unitCents, qty * unitCents]
+          });
+        });
+        await db.batch(statements);
+      } catch (e) {
+        console.error('D1 write failed (/checkout):', e.message);
+      }
+    });
+
     res.json({ success: true });
   } catch (err) {
     console.error('Error in /checkout:', err);
@@ -259,9 +300,11 @@ app.post('/cleaning-quote', requireMuseAuth, async (req, res) => {
       });
     }
 
-    // Build decision link
+    // Build decision link — include quoteId so the decision step can update the DB row
+    const quoteId = crypto.randomUUID();
     const payload = {
       type: 'cleaning-quote',
+      quoteId,
       region, name, email,
       apartmentId, dateISO,
       requestedAt: Date.now()
@@ -317,6 +360,20 @@ app.post('/cleaning-quote', requireMuseAuth, async (req, res) => {
         });
       } catch (e) {
         console.error('Background email error (client /cleaning-quote):', e);
+      }
+
+      // Analytics: insert pending quote row
+      if (db.isConfigured()) {
+        try {
+          await db.query(
+            `INSERT INTO cleaning_quotes
+               (id, created_at, region, requester_name, requester_email, apartment_id, requested_date, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
+            [quoteId, Date.now(), region, name, email, apartmentId, dateISO]
+          );
+        } catch (e) {
+          console.error('D1 write failed (/cleaning-quote):', e.message);
+        }
       }
     });
 
@@ -436,6 +493,21 @@ app.post('/quote/decision', async (req, res) => {
       subject: `Decisione inviata — ${String(action).toUpperCase()} — ${data.apartmentId} (${data.dateISO})`,
       html: emailWrap(`<p>Decisione: <strong>${esc(action)}</strong> ${price ? `— Prezzo €${price.toFixed(2)}` : ''}<br/>
              Cliente: ${esc(data.name)} &lt;${esc(data.email)}&gt;</p>`)
+    });
+
+    // Analytics: update quote row — fire-and-forget
+    setImmediate(async () => {
+      if (!db.isConfigured() || !data.quoteId) return;
+      try {
+        const status = action === 'accept' ? 'accepted' : 'denied';
+        const priceCents = action === 'accept' ? Math.round(price * 100) : null;
+        await db.query(
+          `UPDATE cleaning_quotes SET status = ?, quoted_price_cents = ?, decided_at = ? WHERE id = ?`,
+          [status, priceCents, Date.now(), data.quoteId]
+        );
+      } catch (e) {
+        console.error('D1 update failed (/quote/decision):', e.message);
+      }
     });
 
     res.send('Decisione inviata con successo. Puoi chiudere questa pagina.');
@@ -582,6 +654,192 @@ app.get('/debug/preview/decision-deny', (req, res) => {
     <p style="font-size:14px;">Ciao <strong>${esc(name)}</strong>, la tua richiesta è stata rifiutata.</p>
     <p style="font-size:13px;color:#666;">Se vuoi, invia una nuova richiesta con un'altra data.</p>`;
   res.set('Content-Type','text/html; charset=utf-8').send(emailWrap(html));
+});
+
+/* ────────────────────────────── ADMIN ───────────────────────────────────
+   Password-gated analytics dashboard. Reads from Cloudflare D1.
+*/
+
+// Serve the dashboard HTML (from views/, not public/, so it is only reachable when authed)
+app.get('/admin', requireMuseAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'admin.html'));
+});
+
+// Parse ?from=YYYY-MM-DD&to=YYYY-MM-DD&region=... into SQL WHERE clauses
+function buildDateRangeClause(req, column = 'created_at') {
+  const where = [];
+  const params = [];
+  const from = String(req.query.from || '').trim();
+  const to   = String(req.query.to   || '').trim();
+  const region = String(req.query.region || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
+    where.push(`${column} >= ?`);
+    params.push(new Date(`${from}T00:00:00Z`).getTime());
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    where.push(`${column} < ?`);
+    params.push(new Date(`${to}T00:00:00Z`).getTime() + 24 * 3600 * 1000);
+  }
+  if (region) {
+    where.push(`region = ?`);
+    params.push(region);
+  }
+  return {
+    sql: where.length ? 'WHERE ' + where.join(' AND ') : '',
+    params
+  };
+}
+
+app.get('/admin/api/stats', requireMuseAuth, async (req, res) => {
+  try {
+    if (!db.isConfigured()) {
+      return res.status(503).json({ success: false, error: 'Analytics DB not configured' });
+    }
+    const { sql: ordersWhere, params: ordersParams } = buildDateRangeClause(req);
+    const { sql: quotesWhere, params: quotesParams } = buildDateRangeClause(req);
+
+    // Summary (orders)
+    const summary = await db.query(
+      `SELECT COUNT(*) AS total_orders,
+              COALESCE(SUM(total_cents),0) AS total_revenue_cents,
+              COALESCE(SUM(item_count),0) AS total_items,
+              COALESCE(AVG(total_cents),0) AS avg_order_cents
+       FROM orders ${ordersWhere}`,
+      ordersParams
+    );
+
+    // Summary (quotes)
+    const quotesSummary = await db.query(
+      `SELECT
+         SUM(CASE WHEN status='pending'  THEN 1 ELSE 0 END) AS pending_quotes,
+         SUM(CASE WHEN status='accepted' THEN 1 ELSE 0 END) AS accepted_quotes,
+         SUM(CASE WHEN status='denied'   THEN 1 ELSE 0 END) AS denied_quotes,
+         COALESCE(SUM(CASE WHEN status='accepted' THEN quoted_price_cents ELSE 0 END),0) AS accepted_revenue_cents
+       FROM cleaning_quotes ${quotesWhere}`,
+      quotesParams
+    );
+
+    // Per-product — JOIN items with their parent orders to apply the same filter
+    const byProduct = await db.query(
+      `SELECT oi.product_id, oi.product_title,
+              SUM(oi.qty) AS total_qty,
+              SUM(oi.line_total_cents) AS total_revenue_cents,
+              COUNT(DISTINCT oi.order_id) AS order_count
+       FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+       ${ordersWhere ? ordersWhere.replace(/created_at/g, 'o.created_at').replace(/region/g, 'o.region') : ''}
+       GROUP BY oi.product_id, oi.product_title
+       ORDER BY total_qty DESC
+       LIMIT 100`,
+      ordersParams
+    );
+
+    // Per-customer
+    const byCustomer = await db.query(
+      `SELECT customer_email, MAX(customer_name) AS customer_name,
+              COUNT(*) AS order_count,
+              SUM(item_count) AS total_qty,
+              SUM(total_cents) AS total_revenue_cents
+       FROM orders ${ordersWhere}
+       GROUP BY customer_email
+       ORDER BY total_revenue_cents DESC
+       LIMIT 100`,
+      ordersParams
+    );
+
+    // Per-region
+    const byRegion = await db.query(
+      `SELECT region, COUNT(*) AS order_count, SUM(total_cents) AS total_revenue_cents
+       FROM orders ${ordersWhere}
+       GROUP BY region
+       ORDER BY total_revenue_cents DESC`,
+      ordersParams
+    );
+
+    // Recent orders
+    const recentOrders = await db.query(
+      `SELECT id, created_at, region, customer_name, customer_email, total_cents, item_count
+       FROM orders ${ordersWhere}
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      ordersParams
+    );
+
+    // Recent quotes
+    const recentQuotes = await db.query(
+      `SELECT id, created_at, region, requester_name, requester_email, apartment_id,
+              requested_date, status, quoted_price_cents, decided_at
+       FROM cleaning_quotes ${quotesWhere}
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      quotesParams
+    );
+
+    res.json({
+      success: true,
+      summary: (summary.results || [{}])[0],
+      quotesSummary: (quotesSummary.results || [{}])[0],
+      byProduct: byProduct.results || [],
+      byCustomer: byCustomer.results || [],
+      byRegion: byRegion.results || [],
+      recentOrders: recentOrders.results || [],
+      recentQuotes: recentQuotes.results || []
+    });
+  } catch (err) {
+    console.error('Error /admin/api/stats:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/admin/export.csv', requireMuseAuth, async (req, res) => {
+  try {
+    if (!db.isConfigured()) {
+      return res.status(503).send('Analytics DB not configured');
+    }
+    const { sql: where, params } = buildDateRangeClause(req, 'o.created_at');
+    const result = await db.query(
+      `SELECT o.id AS order_id, o.created_at, o.region, o.customer_name, o.customer_email,
+              o.total_cents, oi.product_id, oi.product_title, oi.qty,
+              oi.unit_price_cents, oi.line_total_cents
+       FROM orders o
+       LEFT JOIN order_items oi ON oi.order_id = o.id
+       ${where.replace(/region/g, 'o.region')}
+       ORDER BY o.created_at DESC`,
+      params
+    );
+    const rows = result.results || [];
+    const csvEscape = (v) => {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = [
+      'order_id','created_at_iso','region','customer_name','customer_email',
+      'order_total_eur','product_id','product_title','qty','unit_price_eur','line_total_eur'
+    ];
+    const lines = [header.join(',')];
+    rows.forEach(r => {
+      lines.push([
+        r.order_id,
+        new Date(r.created_at).toISOString(),
+        r.region,
+        r.customer_name,
+        r.customer_email,
+        (r.total_cents / 100).toFixed(2),
+        r.product_id,
+        r.product_title,
+        r.qty,
+        r.unit_price_cents != null ? (r.unit_price_cents / 100).toFixed(2) : '',
+        r.line_total_cents != null ? (r.line_total_cents / 100).toFixed(2) : ''
+      ].map(csvEscape).join(','));
+    });
+    res.set('Content-Type', 'text/csv; charset=utf-8');
+    res.set('Content-Disposition', `attachment; filename="orders-${new Date().toISOString().slice(0,10)}.csv"`);
+    res.send(lines.join('\n'));
+  } catch (err) {
+    console.error('Error /admin/export.csv:', err);
+    res.status(500).send('Export error: ' + err.message);
+  }
 });
 
 /* ─────────────────────────── STARTUP VALIDATION ───────────────────────── */
