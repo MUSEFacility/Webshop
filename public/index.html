@@ -1070,6 +1070,26 @@
     </div>
   </div>
 
+  <!-- ══ ADMIN MODAL (hidden — triggered by 5 clicks on nav logo) ══ -->
+  <div id="admin-modal" class="welcome-modal" aria-modal="true" role="dialog" aria-label="Admin" style="display:none">
+    <div class="welcome-panel">
+      <div class="welcome-logo">
+        <img src="logo.png" alt="MUSE" />
+        <span>ADMIN</span>
+      </div>
+      <div class="welcome-pw-section visible">
+        <button class="welcome-pw-back" id="admin-close" type="button">← Chiudi</button>
+        <h2 class="welcome-title" style="font-size:18px">Accesso Admin</h2>
+        <div>
+          <label for="admin-pw-input" style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Password admin</label>
+          <input id="admin-pw-input" type="password" placeholder="Inserisci la password admin…" autocomplete="current-password" />
+          <div id="admin-pw-error" class="pw-error">Password non corretta, riprova.</div>
+        </div>
+        <button class="btn-primary" id="admin-pw-confirm" type="button">Accedi →</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ══ TOP NAV ══ -->
   <nav class="topnav" role="navigation" aria-label="Navigazione principale">
     <div class="nav-inner">
@@ -1342,6 +1362,7 @@
     api: {
       catalog:       '/catalog.json',
       verifyPassword:'/api/verify-password',
+      verifyAdminPassword:'/api/verify-admin-password',
       checkout:      '/checkout'
     },
     n8n: {
@@ -1699,6 +1720,71 @@
   });
 
   wcPwInput.addEventListener('keydown', e => { if (e.key === 'Enter') wcPwConfirm.click(); });
+
+  /* ══════════════════════════════════════════
+     ADMIN MODAL (hidden trigger: 5 clicks on nav logo within 2s)
+  ══════════════════════════════════════════ */
+  const adminModal    = document.getElementById('admin-modal');
+  const adminPwInput  = document.getElementById('admin-pw-input');
+  const adminPwError  = document.getElementById('admin-pw-error');
+  const adminPwConfirm= document.getElementById('admin-pw-confirm');
+  const adminClose    = document.getElementById('admin-close');
+  const navBrand      = document.querySelector('.nav-brand');
+
+  function openAdminModal() {
+    adminPwInput.value = '';
+    adminPwError.style.display = 'none';
+    adminModal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => adminPwInput.focus(), 0);
+  }
+  function closeAdminModal() {
+    adminModal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  // 5-click counter — resets if gap between clicks > 2s
+  let adminClickCount = 0;
+  let adminClickTimer = null;
+  if (navBrand) {
+    navBrand.addEventListener('click', (e) => {
+      adminClickCount++;
+      clearTimeout(adminClickTimer);
+      adminClickTimer = setTimeout(() => { adminClickCount = 0; }, 2000);
+      if (adminClickCount >= 5) {
+        adminClickCount = 0;
+        e.preventDefault();
+        e.stopPropagation();
+        openAdminModal();
+      }
+    }, true);
+  }
+
+  adminClose.addEventListener('click', closeAdminModal);
+  adminPwInput.addEventListener('keydown', e => { if (e.key === 'Enter') adminPwConfirm.click(); });
+  adminPwConfirm.addEventListener('click', async () => {
+    const pw = adminPwInput.value;
+    if (!pw) { adminPwInput.focus(); return; }
+    adminPwConfirm.disabled = true; adminPwConfirm.textContent = '…';
+    let ok = false;
+    try {
+      const res = await fetch(CONFIG.api.verifyAdminPassword, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ password: pw })
+      });
+      const data = await res.json();
+      ok = data.ok === true;
+    } catch { ok = false; }
+    adminPwConfirm.disabled = false; adminPwConfirm.textContent = 'Accedi →';
+    if (ok) {
+      closeAdminModal();
+      window.location.href = '/admin';
+    } else {
+      adminPwError.style.display = 'block';
+      adminPwInput.select();
+    }
+  });
 
   // Decide whether to show welcome modal or skip it
   const savedAccess = localStorage.getItem('museAccess');
