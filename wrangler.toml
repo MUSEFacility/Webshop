@@ -26,6 +26,8 @@ database_id = "e6728bc9-e29f-441e-94f1-2ce65cc400fa"
 APP_BASE_URL = "https://www.muse.services"
 SHOP_EMAIL = "info@muse.holiday"
 SHOP_CC_EMAIL = "info@muse.holiday"
+# Admin CC — shadow-copied on shop-facing order confirmations and cleaning-quote requests.
+ADMIN_CC_EMAIL = "facilitymuse@gmail.com"
 ENABLE_EMAIL_PREVIEWS = "false"
 EXPOSE_DECISION_URL = "false"
 # Address used as the From: on all outbound email. Must be on a Resend-verified domain.

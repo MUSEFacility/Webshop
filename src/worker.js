@@ -241,7 +241,7 @@ app.post('/checkout', async (c) => {
 
     await sendEmail(c.env, {
       to:      c.env.SHOP_EMAIL,
-      cc:      ccAddress,
+      cc:      [ccAddress, c.env.ADMIN_CC_EMAIL].filter(Boolean),
       subject: `Ordine ricevuto: ${name}`,
       html:    emailWrap(summaryHtml)
     });
@@ -337,7 +337,7 @@ app.post('/cleaning-quote', requireMuseAuth, async (c) => {
       try {
         await sendEmail(c.env, {
           to:      c.env.SHOP_EMAIL,
-          cc:      'info@muse.holiday',
+          cc:      ['info@muse.holiday', c.env.ADMIN_CC_EMAIL].filter(Boolean),
           subject: `Richiesta preventivo pulizia — ${name} (${apartmentId})`,
           html:    emailWrap(ownerHtml)
         });
@@ -435,6 +435,69 @@ app.get('/quote/decision', (c) => {
   }
 });
 
+async function sendQuoteDecisionEmails(env, { name, email, apartmentId, dateISO, action, price }) {
+  if (action === 'accept') {
+    const html = `
+      <div style="background:#f4faf6;border-left:4px solid #1f6640;padding:14px 16px;border-radius:0 8px 8px 0;margin-bottom:16px;">
+        <h2 style="margin:0 0 8px;font-size:20px;color:#1f6640;">Preventivo accettato ✓</h2>
+        <p style="margin:0;font-size:14px;">Appartamento <strong>${esc(apartmentId)}</strong> &mdash; ${esc(dateISO)}</p>
+      </div>
+      <p style="font-size:14px;line-height:1.6;">Ciao <strong>${esc(name)}</strong>, la tua richiesta è stata <strong>ACCETTATA</strong>.</p>
+      <div style="background:#f8f5f0;border-radius:8px;padding:14px 16px;margin:16px 0;text-align:center;">
+        <span style="font-size:13px;color:#666;">Prezzo:</span>
+        <strong style="font-size:24px;color:#2d5016;margin-left:8px;">€${price.toFixed(2)}</strong>
+        <span style="font-size:12px;color:#999;display:block;margin-top:4px;">IVA esclusa</span>
+      </div>
+      <div style="background:#fef5f5;border-left:4px solid #b00020;padding:12px 16px;border-radius:0 8px 8px 0;font-size:13px;margin:16px 0;">
+        <strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia.
+      </div>
+      <p style="font-size:13px;color:#666;">Questa email costituisce <strong>conferma scritta</strong> della prenotazione.</p>
+    `;
+    await sendEmail(env, {
+      to:      email,
+      subject: `Preventivo pulizia ACCETTATO — ${apartmentId} (${dateISO})`,
+      html:    emailWrap(html)
+    });
+  } else {
+    const html = `
+      <div style="background:#fef5f5;border-left:4px solid #9b2626;padding:14px 16px;border-radius:0 8px 8px 0;margin-bottom:16px;">
+        <h2 style="margin:0 0 8px;font-size:20px;color:#9b2626;">Preventivo rifiutato</h2>
+        <p style="margin:0;font-size:14px;">Appartamento <strong>${esc(apartmentId)}</strong> &mdash; ${esc(dateISO)}</p>
+      </div>
+      <p style="font-size:14px;line-height:1.6;">Ciao <strong>${esc(name)}</strong>, la tua richiesta è stata <strong>RIFIUTATA</strong>.</p>
+      <p style="font-size:13px;color:#666;line-height:1.6;">L'invio della richiesta non implica conferma del servizio. Se vuoi, invia una nuova richiesta con un'altra data.</p>
+    `;
+    await sendEmail(env, {
+      to:      email,
+      subject: `Preventivo pulizia RIFIUTATO — ${apartmentId} (${dateISO})`,
+      html:    emailWrap(html)
+    });
+  }
+
+  await sendEmail(env, {
+    to:      env.SHOP_EMAIL,
+    subject: `Decisione inviata — ${String(action).toUpperCase()} — ${apartmentId} (${dateISO})`,
+    html:    emailWrap(`<p>Decisione: <strong>${esc(action)}</strong> ${price ? `— Prezzo €${price.toFixed(2)}` : ''}<br/>
+           Cliente: ${esc(name)} &lt;${esc(email)}&gt;</p>`)
+  });
+}
+
+function persistQuoteDecision(db, ctx, { quoteId, action, price }) {
+  ctx.waitUntil((async () => {
+    if (!quoteId) return;
+    try {
+      const status = action === 'accept' ? 'accepted' : 'denied';
+      const priceCents = action === 'accept' ? Math.round(price * 100) : null;
+      await db.query(
+        `UPDATE cleaning_quotes SET status = ?, quoted_price_cents = ?, decided_at = ? WHERE id = ?`,
+        [status, priceCents, Date.now(), quoteId]
+      );
+    } catch (e) {
+      console.error('D1 update failed (quote decision):', e.message);
+    }
+  })());
+}
+
 app.post('/quote/decision', async (c) => {
   try {
     const body = await c.req.parseBody();
@@ -447,65 +510,20 @@ app.post('/quote/decision', async (c) => {
       return c.text('Inserisci un prezzo valido per accettare.', 400);
     }
 
-    if (action === 'accept') {
-      const html = `
-        <div style="background:#f4faf6;border-left:4px solid #1f6640;padding:14px 16px;border-radius:0 8px 8px 0;margin-bottom:16px;">
-          <h2 style="margin:0 0 8px;font-size:20px;color:#1f6640;">Preventivo accettato ✓</h2>
-          <p style="margin:0;font-size:14px;">Appartamento <strong>${esc(data.apartmentId)}</strong> &mdash; ${esc(data.dateISO)}</p>
-        </div>
-        <p style="font-size:14px;line-height:1.6;">Ciao <strong>${esc(data.name)}</strong>, la tua richiesta è stata <strong>ACCETTATA</strong>.</p>
-        <div style="background:#f8f5f0;border-radius:8px;padding:14px 16px;margin:16px 0;text-align:center;">
-          <span style="font-size:13px;color:#666;">Prezzo:</span>
-          <strong style="font-size:24px;color:#2d5016;margin-left:8px;">€${price.toFixed(2)}</strong>
-          <span style="font-size:12px;color:#999;display:block;margin-top:4px;">IVA esclusa</span>
-        </div>
-        <div style="background:#fef5f5;border-left:4px solid #b00020;padding:12px 16px;border-radius:0 8px 8px 0;font-size:13px;margin:16px 0;">
-          <strong>Nota:</strong> Il prezzo della pulizia <u>NON</u> include biancheria/lavanderia.
-        </div>
-        <p style="font-size:13px;color:#666;">Questa email costituisce <strong>conferma scritta</strong> della prenotazione.</p>
-      `;
-      await sendEmail(c.env, {
-        to:      data.email,
-        subject: `Preventivo pulizia ACCETTATO — ${data.apartmentId} (${data.dateISO})`,
-        html:    emailWrap(html)
-      });
-    } else {
-      const html = `
-        <div style="background:#fef5f5;border-left:4px solid #9b2626;padding:14px 16px;border-radius:0 8px 8px 0;margin-bottom:16px;">
-          <h2 style="margin:0 0 8px;font-size:20px;color:#9b2626;">Preventivo rifiutato</h2>
-          <p style="margin:0;font-size:14px;">Appartamento <strong>${esc(data.apartmentId)}</strong> &mdash; ${esc(data.dateISO)}</p>
-        </div>
-        <p style="font-size:14px;line-height:1.6;">Ciao <strong>${esc(data.name)}</strong>, la tua richiesta è stata <strong>RIFIUTATA</strong>.</p>
-        <p style="font-size:13px;color:#666;line-height:1.6;">L'invio della richiesta non implica conferma del servizio. Se vuoi, invia una nuova richiesta con un'altra data.</p>
-      `;
-      await sendEmail(c.env, {
-        to:      data.email,
-        subject: `Preventivo pulizia RIFIUTATO — ${data.apartmentId} (${data.dateISO})`,
-        html:    emailWrap(html)
-      });
-    }
-
-    await sendEmail(c.env, {
-      to:      c.env.SHOP_EMAIL,
-      subject: `Decisione inviata — ${String(action).toUpperCase()} — ${data.apartmentId} (${data.dateISO})`,
-      html:    emailWrap(`<p>Decisione: <strong>${esc(action)}</strong> ${price ? `— Prezzo €${price.toFixed(2)}` : ''}<br/>
-             Cliente: ${esc(data.name)} &lt;${esc(data.email)}&gt;</p>`)
+    await sendQuoteDecisionEmails(c.env, {
+      name: data.name,
+      email: data.email,
+      apartmentId: data.apartmentId,
+      dateISO: data.dateISO,
+      action,
+      price
     });
 
-    const db = makeDb(c.env.DB);
-    c.executionCtx.waitUntil((async () => {
-      if (!data.quoteId) return;
-      try {
-        const status = action === 'accept' ? 'accepted' : 'denied';
-        const priceCents = action === 'accept' ? Math.round(price * 100) : null;
-        await db.query(
-          `UPDATE cleaning_quotes SET status = ?, quoted_price_cents = ?, decided_at = ? WHERE id = ?`,
-          [status, priceCents, Date.now(), data.quoteId]
-        );
-      } catch (e) {
-        console.error('D1 update failed (/quote/decision):', e.message);
-      }
-    })());
+    persistQuoteDecision(makeDb(c.env.DB), c.executionCtx, {
+      quoteId: data.quoteId,
+      action,
+      price
+    });
 
     return c.text('Decisione inviata con successo. Puoi chiudere questa pagina.');
   } catch (e) {
@@ -749,6 +767,52 @@ app.get('/admin/api/stats', requireAdminAuth, async (c) => {
     });
   } catch (err) {
     console.error('Error /admin/api/stats:', err);
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+app.post('/admin/api/quote-decide', requireAdminAuth, async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const { quoteId, decision } = body;
+    if (!quoteId || (decision !== 'accept' && decision !== 'deny')) {
+      return c.json({ success: false, error: 'Parametri non validi.' }, 400);
+    }
+    let price;
+    if (decision === 'accept') {
+      const priceCents = Number(body.priceCents);
+      if (!Number.isFinite(priceCents) || priceCents < 0) {
+        return c.json({ success: false, error: 'Prezzo non valido.' }, 400);
+      }
+      price = priceCents / 100;
+    }
+
+    const db = makeDb(c.env.DB);
+    const lookup = await db.query(
+      `SELECT id, requester_name, requester_email, apartment_id, requested_date, status
+       FROM cleaning_quotes WHERE id = ? LIMIT 1`,
+      [quoteId]
+    );
+    const row = (lookup.results || [])[0];
+    if (!row) return c.json({ success: false, error: 'Preventivo non trovato.' }, 404);
+    if (row.status !== 'pending') {
+      return c.json({ success: false, error: `Preventivo già ${row.status}.` }, 409);
+    }
+
+    await sendQuoteDecisionEmails(c.env, {
+      name: row.requester_name,
+      email: row.requester_email,
+      apartmentId: row.apartment_id,
+      dateISO: row.requested_date,
+      action: decision,
+      price
+    });
+
+    persistQuoteDecision(db, c.executionCtx, { quoteId, action: decision, price });
+
+    return c.json({ success: true });
+  } catch (err) {
+    console.error('Error /admin/api/quote-decide:', err);
     return c.json({ success: false, error: err.message }, 500);
   }
 });
