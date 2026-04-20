@@ -1,15 +1,16 @@
-// server.js
-require('dotenv').config({ path: require('path').join(__dirname, '.env') });
-const express    = require('express');
-const bodyParser = require('body-parser');
-const nodemailer = require('nodemailer');
-const path       = require('path');
-const crypto     = require('crypto');
-const db         = require('./db');
+// src/worker.js — Cloudflare Worker port of the Express server (server.js).
+//
+// Static HTML under public/ is served automatically by the Cloudflare Assets
+// binding before this Worker runs; only dynamic routes land here.
 
-const app = express();
+import { Hono } from 'hono';
+import crypto from 'node:crypto';
+import { makeDb } from './db.js';
+import { sendEmail } from './mail.js';
+import adminHtml from '../views/admin.html';
 
-/* ── slug helper for stable product identity across price changes ── */
+/* ─────────────────────────── Helpers ─────────────────────────── */
+
 function slug(s) {
   return String(s || '')
     .toLowerCase()
@@ -37,13 +38,11 @@ const EXPORT_PRODUCTS = [
   'Asciugamano viso 50×100'
 ];
 
-/* ── HTML-escape helper (prevents XSS in email templates) ── */
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-/* ── Branded email wrapper ── */
 function emailWrap(bodyHtml) {
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
@@ -66,179 +65,143 @@ function emailWrap(bodyHtml) {
 </body></html>`;
 }
 
-/* ────────────────────────── DOMAIN REDIRECTS ──────────────────────────
-   Allow the Fly domain for testing, still force www → apex, and don't
-   interfere with ACME TLS validation. Put this BEFORE other routes. */
-app.use((req, res, next) => {
-  const host = (req.headers['x-forwarded-host'] || req.hostname || '').toLowerCase();
-
-  // Let Fly *.fly.dev work during setup
-  if (host.endsWith('.fly.dev')) return next();
-
-  // Don't break TLS issuance checks
-  if (req.path.startsWith('/.well-known/acme-challenge')) return next();
-
-  // Keep canonical redirect for your own domain (www → apex)
-  if (host === 'www.musevision.it') {
-    return res.redirect(301, 'https://musevision.it' + req.originalUrl);
-  }
-
-  next();
-});
-
-/* ─────────────────────────── SMTP TRANSPORT ─────────────────────────── */
-const transporter = nodemailer.createTransport({
-  host:   process.env.SMTP_HOST,
-  port:   Number(process.env.SMTP_PORT),
-  secure: process.env.SMTP_PORT === '465',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  }
-});
-
-/* ────────────────────────────── HELPERS ─────────────────────────────── */
-const BASE_URL = process.env.APP_BASE_URL || 'https://musevision.it';
-const SIGNING_SECRET = process.env.QUOTE_SIGNING_SECRET || 'CHANGE_ME';
-const EXPOSE_DECISION_URL = String(process.env.EXPOSE_DECISION_URL || '').toLowerCase() === 'true';
-
-// Sign/verify small payloads for emailed decision links
-function signToken(obj) {
+function signToken(secret, obj) {
   const data = Buffer.from(JSON.stringify(obj)).toString('base64url');
-  const sig  = crypto.createHmac('sha256', SIGNING_SECRET).update(data).digest('base64url');
+  const sig  = crypto.createHmac('sha256', secret).update(data).digest('base64url');
   return `${data}.${sig}`;
 }
-function verifyToken(token) {
+
+function verifyToken(secret, token) {
   const [data, sig] = String(token || '').split('.');
   if (!data || !sig) throw new Error('Malformed token');
-  const expected = crypto.createHmac('sha256', SIGNING_SECRET).update(data).digest('base64url');
+  const expected = crypto.createHmac('sha256', secret).update(data).digest('base64url');
   if (sig !== expected) throw new Error('Bad signature');
   return JSON.parse(Buffer.from(data, 'base64url').toString());
 }
 
-// Read a single cookie value from the request (avoids adding cookie-parser dep)
-function readCookie(req, name) {
-  const raw = req.headers.cookie || '';
+function readCookie(c, name) {
+  const raw = c.req.header('cookie') || '';
   const match = raw.split(';').map(s => s.trim()).find(s => s.startsWith(name + '='));
   return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
 }
 
-// Build the Set-Cookie header value for the MUSE auth cookie
-const MUSE_AUTH_TTL_MS = 12 * 60 * 60 * 1000; // 12h
-function buildMuseAuthCookie(req) {
-  const token = signToken({ type: 'muse-auth', exp: Date.now() + MUSE_AUTH_TTL_MS });
-  const maxAge = Math.floor(MUSE_AUTH_TTL_MS / 1000);
-  const proto = (req.headers['x-forwarded-proto'] || req.protocol || '').toLowerCase();
-  const secure = proto === 'https' ? '; Secure' : '';
-  return `muse_auth=${encodeURIComponent(token)}; HttpOnly${secure}; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+const MUSE_AUTH_TTL_MS = 12 * 60 * 60 * 1000;
+const ADMIN_AUTH_TTL_MS = 2 * 60 * 60 * 1000;
+
+function buildAuthCookie(name, type, ttlMs, secret) {
+  const token = signToken(secret, { type, exp: Date.now() + ttlMs });
+  const maxAge = Math.floor(ttlMs / 1000);
+  return `${name}=${encodeURIComponent(token)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
 }
 
-// Admin auth is a separate session from MUSE. Shorter TTL since more sensitive.
-const ADMIN_AUTH_TTL_MS = 2 * 60 * 60 * 1000; // 2h
-function buildAdminAuthCookie(req) {
-  const token = signToken({ type: 'admin-auth', exp: Date.now() + ADMIN_AUTH_TTL_MS });
-  const maxAge = Math.floor(ADMIN_AUTH_TTL_MS / 1000);
-  const proto = (req.headers['x-forwarded-proto'] || req.protocol || '').toLowerCase();
-  const secure = proto === 'https' ? '; Secure' : '';
-  return `admin_auth=${encodeURIComponent(token)}; HttpOnly${secure}; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+function is72hBeforeMidnight(dateISO) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateISO || ''))) return false;
+  const midnight = new Date(`${dateISO}T00:00:00`);
+  const now = new Date();
+  return (midnight - now) >= 72 * 60 * 60 * 1000;
 }
 
-// Middleware: require a valid, unexpired muse_auth cookie
-function requireMuseAuth(req, res, next) {
+/* ──────────────────────── Environment validation ────────────────────────
+   Replaces server.js:885–899. Runs once per isolate; throws on bad config
+   so Hono returns 500, instead of process.exit which doesn't apply to Workers. */
+
+let envValidated = false;
+function validateEnv(env) {
+  if (envValidated) return;
+  if (!env.INTERNAL_PW) throw new Error('INTERNAL_PW is not set — cannot verify passwords.');
+  if (!env.ADMIN_PW) throw new Error('ADMIN_PW is not set — admin dashboard unreachable.');
+  if (env.ADMIN_PW === env.INTERNAL_PW) {
+    throw new Error('ADMIN_PW must differ from INTERNAL_PW — MUSE users would otherwise get admin access.');
+  }
+  if (!env.QUOTE_SIGNING_SECRET || env.QUOTE_SIGNING_SECRET === 'CHANGE_ME') {
+    console.warn('WARNING: QUOTE_SIGNING_SECRET is missing or default.');
+  }
+  envValidated = true;
+}
+
+/* ──────────────────────── Hono app ──────────────────────── */
+
+const app = new Hono();
+
+app.use('*', async (c, next) => {
+  validateEnv(c.env);
+  await next();
+});
+
+/* ── Middleware: require a valid muse_auth cookie ── */
+function requireMuseAuth(c, next) {
   try {
-    const raw = readCookie(req, 'muse_auth');
-    if (!raw) return res.status(401).json({ success: false, error: 'Autenticazione MUSE richiesta.' });
-    const payload = verifyToken(raw);
+    const raw = readCookie(c, 'muse_auth');
+    if (!raw) return c.json({ success: false, error: 'Autenticazione MUSE richiesta.' }, 401);
+    const payload = verifyToken(c.env.QUOTE_SIGNING_SECRET, raw);
     if (payload.type !== 'muse-auth' || !payload.exp || payload.exp < Date.now()) {
-      return res.status(401).json({ success: false, error: 'Sessione MUSE scaduta.' });
+      return c.json({ success: false, error: 'Sessione MUSE scaduta.' }, 401);
     }
-    next();
+    return next();
   } catch {
-    return res.status(401).json({ success: false, error: 'Sessione MUSE non valida.' });
+    return c.json({ success: false, error: 'Sessione MUSE non valida.' }, 401);
   }
 }
 
-// Middleware: require admin_auth. HTML page requests get a redirect to /,
-// API/JSON requests get a 401 so the caller can show an error.
-function requireAdminAuth(req, res, next) {
-  const wantsHtml = (req.headers.accept || '').includes('text/html');
+function requireAdminAuth(c, next) {
+  const wantsHtml = (c.req.header('accept') || '').includes('text/html');
   const fail = (msg) => wantsHtml
-    ? res.redirect('/')
-    : res.status(401).json({ success: false, error: msg });
+    ? c.redirect('/', 302)
+    : c.json({ success: false, error: msg }, 401);
   try {
-    const raw = readCookie(req, 'admin_auth');
+    const raw = readCookie(c, 'admin_auth');
     if (!raw) return fail('Autenticazione admin richiesta.');
-    const payload = verifyToken(raw);
+    const payload = verifyToken(c.env.QUOTE_SIGNING_SECRET, raw);
     if (payload.type !== 'admin-auth' || !payload.exp || payload.exp < Date.now()) {
       return fail('Sessione admin scaduta.');
     }
-    next();
+    return next();
   } catch {
     return fail('Sessione admin non valida.');
   }
 }
 
-// 72h before 00:00 of chosen day (dateISO = "YYYY-MM-DD")
-function is72hBeforeMidnight(dateISO) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateISO || ''))) return false;
-  const midnight = new Date(`${dateISO}T00:00:00`);
-  const now = new Date();
-  const diffMs = midnight - now;
-  return diffMs >= 72 * 60 * 60 * 1000; // 72 hours
-}
+/* ── Password gates ── */
 
-/* ───────────────────────────── MIDDLEWARE ───────────────────────────── */
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+// GET /internal -> funnel through the portal (same behaviour as Express)
+app.get('/internal', (c) => c.redirect('/', 301));
 
-/* ─────────────────────────────── ROUTES ─────────────────────────────── */
-
-// Landing
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Internal (password gated) — direct URL funnels through the portal
-app.get('/internal', (req, res) => {
-  res.redirect(301, '/');
-});
-
-app.post('/internal', (req, res) => {
-  const entered = req.body.password;
-  if (entered === process.env.INTERNAL_PW) {
-    res.setHeader('Set-Cookie', buildMuseAuthCookie(req));
-    res.sendFile(path.join(__dirname, 'public', 'internal.html'));
-  } else {
-    res.redirect('/internal?error=1');
+// POST /internal -> password then serve internal.html
+app.post('/internal', async (c) => {
+  const body = await c.req.parseBody();
+  if (body.password === c.env.INTERNAL_PW) {
+    const cookie = buildAuthCookie('muse_auth', 'muse-auth', MUSE_AUTH_TTL_MS, c.env.QUOTE_SIGNING_SECRET);
+    const asset = await c.env.ASSETS.fetch(new URL('/internal.html', c.req.url));
+    return new Response(asset.body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8', 'Set-Cookie': cookie }
+    });
   }
+  return c.redirect('/internal?error=1', 302);
 });
 
-// Password verification for SPA
-app.post('/api/verify-password', (req, res) => {
-  const entered = req.body.password;
-  const ok = entered === process.env.INTERNAL_PW;
-  if (ok) res.setHeader('Set-Cookie', buildMuseAuthCookie(req));
-  res.json({ ok });
+app.post('/api/verify-password', async (c) => {
+  const body = await c.req.parseBody();
+  const ok = body.password === c.env.INTERNAL_PW;
+  if (ok) c.header('Set-Cookie', buildAuthCookie('muse_auth', 'muse-auth', MUSE_AUTH_TTL_MS, c.env.QUOTE_SIGNING_SECRET));
+  return c.json({ ok });
 });
 
-// Admin password verification — separate from MUSE auth.
-// Hidden access: triggered by 5 clicks on the nav logo in the SPA.
-app.post('/api/verify-admin-password', (req, res) => {
-  const entered = req.body.password;
-  const ok = entered === process.env.ADMIN_PW;
-  if (ok) res.setHeader('Set-Cookie', buildAdminAuthCookie(req));
-  res.json({ ok });
+app.post('/api/verify-admin-password', async (c) => {
+  const body = await c.req.parseBody();
+  const ok = body.password === c.env.ADMIN_PW;
+  if (ok) c.header('Set-Cookie', buildAuthCookie('admin_auth', 'admin-auth', ADMIN_AUTH_TTL_MS, c.env.QUOTE_SIGNING_SECRET));
+  return c.json({ ok });
 });
 
-// External shop — direct URL funnels through the portal
-app.get('/external', (req, res) => {
-  res.redirect(301, '/');
-});
+app.get('/external', (c) => c.redirect('/', 301));
 
-// Checkout (existing)
-app.post('/checkout', async (req, res) => {
+/* ── Checkout ── */
+
+app.post('/checkout', async (c) => {
   try {
-    const { region, name, email, cartJson } = req.body;
+    const body = await c.req.parseBody();
+    const { region, name, email, cartJson } = body;
     const cart = JSON.parse(cartJson || '[]');
 
     let total = 0;
@@ -274,26 +237,25 @@ app.post('/checkout', async (req, res) => {
       Garda:         'garda@muse.holiday',
       'Val Gardena': 'info@muse.holiday'
     };
-    const ccAddress = ccByRegion[region] || process.env.SHOP_CC_EMAIL;
+    const ccAddress = ccByRegion[region] || c.env.SHOP_CC_EMAIL;
 
-    await transporter.sendMail({
-      from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
-      to:      process.env.SHOP_EMAIL,
+    await sendEmail(c.env, {
+      to:      c.env.SHOP_EMAIL,
       cc:      ccAddress,
       subject: `Ordine ricevuto: ${name}`,
       html:    emailWrap(summaryHtml)
     });
 
-    await transporter.sendMail({
-      from:    `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
+    await sendEmail(c.env, {
       to:      email,
       subject: `Conferma ordine €${total.toFixed(2)}`,
       html:    emailWrap(summaryHtml)
     });
 
-    // Analytics write — fire-and-forget. D1 mirrors the email; failures don't block checkout.
-    setImmediate(async () => {
-      if (!db.isConfigured()) return;
+    // Analytics write — D1 via binding. Fire-and-forget with waitUntil so the
+    // response returns immediately.
+    const db = makeDb(c.env.DB);
+    c.executionCtx.waitUntil((async () => {
       try {
         const orderId = crypto.randomUUID();
         const createdAt = Date.now();
@@ -319,45 +281,35 @@ app.post('/checkout', async (req, res) => {
       } catch (e) {
         console.error('D1 write failed (/checkout):', e.message);
       }
-    });
+    })());
 
-    res.json({ success: true });
+    return c.json({ success: true });
   } catch (err) {
     console.error('Error in /checkout:', err);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
 
-/* ─────────────── Cleaning Quote (Internal, Val Gardena) ───────────────
-   POST /cleaning-quote   → user submits (region=Val Gardena, aptId, date)
-   GET  /quote/decision   → you open from email to Accept/Deny (with price)
-   POST /quote/decision   → you submit Accept/Deny; system emails requester
-*/
+/* ── Cleaning quote ── */
 
-// User submits quote request
-app.post('/cleaning-quote', requireMuseAuth, async (req, res) => {
+app.post('/cleaning-quote', requireMuseAuth, async (c) => {
   try {
-    const { region, name, email, apartmentId, dateISO } = req.body;
+    const body = await c.req.parseBody();
+    const { region, name, email, apartmentId, dateISO } = body;
 
-    // Eligibility: region Val Gardena — we trust caller page, enforce region here
     if (region !== 'Val Gardena' && region !== 'Dolomites') {
-      return res.status(400).json({ success: false, error: 'Disponibile solo per Val Gardena e Dolomites.' });
+      return c.json({ success: false, error: 'Disponibile solo per Val Gardena e Dolomites.' }, 400);
     }
-
-    // ID 4–5 alphanumeric
     if (!/^[A-Za-z0-9]{4,5}$/.test(String(apartmentId || ''))) {
-      return res.status(400).json({ success: false, error: 'ID appartamento non valido.' });
+      return c.json({ success: false, error: 'ID appartamento non valido.' }, 400);
     }
-
-    // Must be requested 72h in advance (before 00:00 of chosen day)
     if (!is72hBeforeMidnight(dateISO)) {
-      return res.status(400).json({
+      return c.json({
         success: false,
         error: 'La data deve essere richiesta 72h prima della mezzanotte del giorno scelto.'
-      });
+      }, 400);
     }
 
-    // Build decision link — include quoteId so the decision step can update the DB row
     const quoteId = crypto.randomUUID();
     const payload = {
       type: 'cleaning-quote',
@@ -366,10 +318,9 @@ app.post('/cleaning-quote', requireMuseAuth, async (req, res) => {
       apartmentId, dateISO,
       requestedAt: Date.now()
     };
-    const token = signToken(payload);
-    const decisionURL = `${BASE_URL}/quote/decision?token=${encodeURIComponent(token)}`;
+    const token = signToken(c.env.QUOTE_SIGNING_SECRET, payload);
+    const decisionURL = `${c.env.APP_BASE_URL}/quote/decision?token=${encodeURIComponent(token)}`;
 
-    // Email owner (you)
     const ownerHtml = `
       <h2 style="margin:0 0 16px;font-size:20px;color:#2d5016;">Nuova richiesta preventivo pulizia</h2>
       <div style="background:#f8f5f0;border-radius:8px;padding:14px 16px;margin-bottom:16px;font-size:14px;line-height:1.8;">
@@ -381,21 +332,19 @@ app.post('/cleaning-quote', requireMuseAuth, async (req, res) => {
       <p><a href="${decisionURL}" style="display:inline-block;padding:10px 24px;background:#2d5016;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">Gestisci richiesta &rarr;</a></p>
     `;
 
-    // Send emails in background so API can return quickly
-    setImmediate(async () => {
+    const db = makeDb(c.env.DB);
+    c.executionCtx.waitUntil((async () => {
       try {
-        await transporter.sendMail({
-          from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
-          to:   process.env.SHOP_EMAIL,
-          cc:   'info@muse.holiday',
+        await sendEmail(c.env, {
+          to:      c.env.SHOP_EMAIL,
+          cc:      'info@muse.holiday',
           subject: `Richiesta preventivo pulizia — ${name} (${apartmentId})`,
-          html: emailWrap(ownerHtml)
+          html:    emailWrap(ownerHtml)
         });
       } catch (e) {
-        console.error('Background email error (owner /cleaning-quote):', e);
+        console.error('Background email error (owner /cleaning-quote):', e.message);
       }
 
-      // Email requester (with disclaimers incl. linen not included)
       const clientHtml = `
         <h2 style="margin:0 0 12px;font-size:20px;color:#2d5016;">Richiesta preventivo inviata</h2>
         <p style="font-size:14px;line-height:1.6;">Grazie <strong>${esc(name)}</strong>, abbiamo ricevuto la tua richiesta per la pulizia dell'appartamento
@@ -409,45 +358,40 @@ app.post('/cleaning-quote', requireMuseAuth, async (req, res) => {
         </div>
       `;
       try {
-        await transporter.sendMail({
-          from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
-          to:   email,
+        await sendEmail(c.env, {
+          to:      email,
           subject: `Richiesta preventivo pulizia ricevuta — ${apartmentId} (${dateISO})`,
-          html: emailWrap(clientHtml)
+          html:    emailWrap(clientHtml)
         });
       } catch (e) {
-        console.error('Background email error (client /cleaning-quote):', e);
+        console.error('Background email error (client /cleaning-quote):', e.message);
       }
 
-      // Analytics: insert pending quote row
-      if (db.isConfigured()) {
-        try {
-          await db.query(
-            `INSERT INTO cleaning_quotes
-               (id, created_at, region, requester_name, requester_email, apartment_id, requested_date, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
-            [quoteId, Date.now(), region, name, email, apartmentId, dateISO]
-          );
-        } catch (e) {
-          console.error('D1 write failed (/cleaning-quote):', e.message);
-        }
+      try {
+        await db.query(
+          `INSERT INTO cleaning_quotes
+             (id, created_at, region, requester_name, requester_email, apartment_id, requested_date, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
+          [quoteId, Date.now(), region, name, email, apartmentId, dateISO]
+        );
+      } catch (e) {
+        console.error('D1 write failed (/cleaning-quote):', e.message);
       }
-    });
+    })());
 
-    // Allow testing without relying on email:
-    const includeLink = EXPOSE_DECISION_URL || String(req.query.debug || '').toLowerCase() === '1';
-    res.json(includeLink ? { success: true, decisionURL } : { success: true });
+    const includeLink = String(c.env.EXPOSE_DECISION_URL).toLowerCase() === 'true'
+      || String(c.req.query('debug') || '').toLowerCase() === '1';
+    return c.json(includeLink ? { success: true, decisionURL } : { success: true });
   } catch (err) {
     console.error('Error /cleaning-quote:', err);
-    res.status(500).json({ success: false, error: 'Errore interno' });
+    return c.json({ success: false, error: 'Errore interno' }, 500);
   }
 });
 
-// Decision page (rendered when you click email link)
-app.get('/quote/decision', (req, res) => {
+app.get('/quote/decision', (c) => {
   try {
-    const { token } = req.query;
-    const data = verifyToken(token);
+    const token = c.req.query('token');
+    const data = verifyToken(c.env.QUOTE_SIGNING_SECRET, token);
     if (data.type !== 'cleaning-quote') throw new Error('Bad type');
 
     const html = `
@@ -485,22 +429,22 @@ app.get('/quote/decision', (req, res) => {
         </form>
       </body></html>
     `;
-    res.send(html);
-  } catch (e) {
-    res.status(400).send('Link non valido o scaduto.');
+    return c.html(html);
+  } catch {
+    return c.text('Link non valido o scaduto.', 400);
   }
 });
 
-// Process Accept/Deny
-app.post('/quote/decision', async (req, res) => {
+app.post('/quote/decision', async (c) => {
   try {
-    const { token, action } = req.body;
-    const price = req.body.price ? Number(req.body.price) : undefined;
-    const data = verifyToken(token);
+    const body = await c.req.parseBody();
+    const { token, action } = body;
+    const price = body.price ? Number(body.price) : undefined;
+    const data = verifyToken(c.env.QUOTE_SIGNING_SECRET, token);
     if (data.type !== 'cleaning-quote') throw new Error('Bad type');
 
     if (action === 'accept' && !(price >= 0)) {
-      return res.status(400).send('Inserisci un prezzo valido per accettare.');
+      return c.text('Inserisci un prezzo valido per accettare.', 400);
     }
 
     if (action === 'accept') {
@@ -520,11 +464,10 @@ app.post('/quote/decision', async (req, res) => {
         </div>
         <p style="font-size:13px;color:#666;">Questa email costituisce <strong>conferma scritta</strong> della prenotazione.</p>
       `;
-      await transporter.sendMail({
-        from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
-        to:   data.email,
+      await sendEmail(c.env, {
+        to:      data.email,
         subject: `Preventivo pulizia ACCETTATO — ${data.apartmentId} (${data.dateISO})`,
-        html: emailWrap(html)
+        html:    emailWrap(html)
       });
     } else {
       const html = `
@@ -535,26 +478,23 @@ app.post('/quote/decision', async (req, res) => {
         <p style="font-size:14px;line-height:1.6;">Ciao <strong>${esc(data.name)}</strong>, la tua richiesta è stata <strong>RIFIUTATA</strong>.</p>
         <p style="font-size:13px;color:#666;line-height:1.6;">L'invio della richiesta non implica conferma del servizio. Se vuoi, invia una nuova richiesta con un'altra data.</p>
       `;
-      await transporter.sendMail({
-        from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
-        to:   data.email,
+      await sendEmail(c.env, {
+        to:      data.email,
         subject: `Preventivo pulizia RIFIUTATO — ${data.apartmentId} (${data.dateISO})`,
-        html: emailWrap(html)
+        html:    emailWrap(html)
       });
     }
 
-    // Notify owner (thread)
-    await transporter.sendMail({
-      from: `"MUSE.holiday Shop" <${process.env.SMTP_USER}>`,
-      to:   process.env.SHOP_EMAIL,
+    await sendEmail(c.env, {
+      to:      c.env.SHOP_EMAIL,
       subject: `Decisione inviata — ${String(action).toUpperCase()} — ${data.apartmentId} (${data.dateISO})`,
-      html: emailWrap(`<p>Decisione: <strong>${esc(action)}</strong> ${price ? `— Prezzo €${price.toFixed(2)}` : ''}<br/>
+      html:    emailWrap(`<p>Decisione: <strong>${esc(action)}</strong> ${price ? `— Prezzo €${price.toFixed(2)}` : ''}<br/>
              Cliente: ${esc(data.name)} &lt;${esc(data.email)}&gt;</p>`)
     });
 
-    // Analytics: update quote row — fire-and-forget
-    setImmediate(async () => {
-      if (!db.isConfigured() || !data.quoteId) return;
+    const db = makeDb(c.env.DB);
+    c.executionCtx.waitUntil((async () => {
+      if (!data.quoteId) return;
       try {
         const status = action === 'accept' ? 'accepted' : 'denied';
         const priceCents = action === 'accept' ? Math.round(price * 100) : null;
@@ -565,26 +505,21 @@ app.post('/quote/decision', async (req, res) => {
       } catch (e) {
         console.error('D1 update failed (/quote/decision):', e.message);
       }
-    });
+    })());
 
-    res.send('Decisione inviata con successo. Puoi chiudere questa pagina.');
+    return c.text('Decisione inviata con successo. Puoi chiudere questa pagina.');
   } catch (e) {
     console.error('Error /quote/decision:', e);
-    res.status(400).send('Errore nella decisione.');
+    return c.text('Errore nella decisione.', 400);
   }
 });
 
-/* ───────────────────── EMAIL PREVIEWS (DEV/QA ONLY) ─────────────────────
-   Enable by setting: ENABLE_EMAIL_PREVIEWS=true
-   Then open the URLs below to see the exact HTML that would be emailed.
-*/
-function previewsEnabled(res) {
-  if (process.env.ENABLE_EMAIL_PREVIEWS === 'true') return true;
-  res.status(404).send('Email previews disabled');
-  return false;
+/* ── Email previews (dev/QA only) ── */
+
+function previewsEnabled(c) {
+  return String(c.env.ENABLE_EMAIL_PREVIEWS).toLowerCase() === 'true';
 }
 
-// Helper to render the ORDER email body (same structure you send now)
 function renderOrderEmail({ name, email, region, cart }) {
   let total = 0;
   let summaryHtml = `
@@ -615,39 +550,30 @@ function renderOrderEmail({ name, email, region, cart }) {
   return summaryHtml;
 }
 
-// ORDER email preview (owner + buyer share same body in your code)
-app.get('/debug/preview/order', (req, res) => {
-  if (!previewsEnabled(res)) return;
-
-  const name   = req.query.name   || 'Mario Rossi';
-  const email  = req.query.email  || 'mario.rossi@example.com';
-  const region = req.query.region || 'Val Gardena';
-
-  // You can pass a cart JSON as base64url in ?cart_b64=… (optional)
+app.get('/debug/preview/order', (c) => {
+  if (!previewsEnabled(c)) return c.text('Email previews disabled', 404);
+  const name   = c.req.query('name')   || 'Mario Rossi';
+  const email  = c.req.query('email')  || 'mario.rossi@example.com';
+  const region = c.req.query('region') || 'Val Gardena';
   let cart = [
     { title: 'ASCIUGAMANO BAGNO 100x150', qty: 2, price: 9.77 },
     { title: 'LENZUOLO 2P 240x300', qty: 1, price: 23.53 }
   ];
-  if (req.query.cart_b64) {
+  if (c.req.query('cart_b64')) {
     try {
-      cart = JSON.parse(Buffer.from(req.query.cart_b64, 'base64url').toString());
+      cart = JSON.parse(Buffer.from(c.req.query('cart_b64'), 'base64url').toString());
     } catch (_) {}
   }
-
-  const html = renderOrderEmail({ name, email, region, cart });
-  res.set('Content-Type','text/html; charset=utf-8').send(emailWrap(html));
+  return c.html(emailWrap(renderOrderEmail({ name, email, region, cart })));
 });
 
-// CLEANING: owner email preview (includes decision link)
-app.get('/debug/preview/cleaning-owner', (req, res) => {
-  if (!previewsEnabled(res)) return;
-
-  const name   = req.query.name   || 'Mario Rossi';
-  const email  = req.query.email  || 'mario.rossi@example.com';
-  const apt    = req.query.apt    || '1234A';
-  const date   = req.query.date   || '2025-11-05';
-  const link   = req.query.link   || `${(process.env.APP_BASE_URL || 'https://musevision.it')}/quote/decision?token=TEST_TOKEN`;
-
+app.get('/debug/preview/cleaning-owner', (c) => {
+  if (!previewsEnabled(c)) return c.text('Email previews disabled', 404);
+  const name = c.req.query('name') || 'Mario Rossi';
+  const email = c.req.query('email') || 'mario.rossi@example.com';
+  const apt = c.req.query('apt') || '1234A';
+  const date = c.req.query('date') || '2025-11-05';
+  const link = c.req.query('link') || `${c.env.APP_BASE_URL}/quote/decision?token=TEST_TOKEN`;
   const html = `
     <h2 style="margin:0 0 16px;font-size:20px;color:#2d5016;">Nuova richiesta preventivo pulizia</h2>
     <div style="background:#f8f5f0;border-radius:8px;padding:14px 16px;margin-bottom:16px;font-size:14px;line-height:1.8;">
@@ -657,15 +583,14 @@ app.get('/debug/preview/cleaning-owner', (req, res) => {
     </div>
     <p style="font-size:14px;">Apri per <strong>Accettare</strong> o <strong>Rifiutare</strong> e inserire il prezzo:</p>
     <p><a href="${link}" style="display:inline-block;padding:10px 24px;background:#2d5016;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">Gestisci richiesta &rarr;</a></p>`;
-  res.set('Content-Type','text/html; charset=utf-8').send(emailWrap(html));
+  return c.html(emailWrap(html));
 });
 
-// CLEANING: client acknowledgement preview
-app.get('/debug/preview/cleaning-client', (req, res) => {
-  if (!previewsEnabled(res)) return;
-  const name = req.query.name || 'Mario Rossi';
-  const apt  = req.query.apt  || '1234A';
-  const date = req.query.date || '2025-11-05';
+app.get('/debug/preview/cleaning-client', (c) => {
+  if (!previewsEnabled(c)) return c.text('Email previews disabled', 404);
+  const name = c.req.query('name') || 'Mario Rossi';
+  const apt  = c.req.query('apt')  || '1234A';
+  const date = c.req.query('date') || '2025-11-05';
   const html = `
     <h2 style="margin:0 0 12px;font-size:20px;color:#2d5016;">Richiesta preventivo inviata</h2>
     <p style="font-size:14px;line-height:1.6;">Grazie <strong>${esc(name)}</strong>, abbiamo ricevuto la tua richiesta per la pulizia
@@ -673,16 +598,15 @@ app.get('/debug/preview/cleaning-client', (req, res) => {
     <div style="background:#fef6e0;border-left:4px solid #e2a300;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0;font-size:13px;">
       <strong>Importante:</strong> questa è solo una richiesta. Conferma solo dopo risposta scritta MUSE.holiday.
     </div>`;
-  res.set('Content-Type','text/html; charset=utf-8').send(emailWrap(html));
+  return c.html(emailWrap(html));
 });
 
-// CLEANING: acceptance email preview
-app.get('/debug/preview/decision-accept', (req, res) => {
-  if (!previewsEnabled(res)) return;
-  const name  = req.query.name  || 'Mario Rossi';
-  const apt   = req.query.apt   || '1234A';
-  const date  = req.query.date  || '2025-11-05';
-  const price = Number(req.query.price || '80');
+app.get('/debug/preview/decision-accept', (c) => {
+  if (!previewsEnabled(c)) return c.text('Email previews disabled', 404);
+  const name  = c.req.query('name')  || 'Mario Rossi';
+  const apt   = c.req.query('apt')   || '1234A';
+  const date  = c.req.query('date')  || '2025-11-05';
+  const price = Number(c.req.query('price') || '80');
   const html = `
     <div style="background:#f4faf6;border-left:4px solid #1f6640;padding:14px 16px;border-radius:0 8px 8px 0;margin-bottom:16px;">
       <h2 style="margin:0 0 8px;font-size:20px;color:#1f6640;">Preventivo accettato ✓</h2>
@@ -694,15 +618,14 @@ app.get('/debug/preview/decision-accept', (req, res) => {
       <strong style="font-size:24px;color:#2d5016;margin-left:8px;">€${price.toFixed(2)}</strong>
     </div>
     <p style="font-size:13px;color:#666;">Questa email costituisce conferma scritta della prenotazione.</p>`;
-  res.set('Content-Type','text/html; charset=utf-8').send(emailWrap(html));
+  return c.html(emailWrap(html));
 });
 
-// CLEANING: denial email preview
-app.get('/debug/preview/decision-deny', (req, res) => {
-  if (!previewsEnabled(res)) return;
-  const name = req.query.name || 'Mario Rossi';
-  const apt  = req.query.apt  || '1234A';
-  const date = req.query.date || '2025-11-05';
+app.get('/debug/preview/decision-deny', (c) => {
+  if (!previewsEnabled(c)) return c.text('Email previews disabled', 404);
+  const name = c.req.query('name') || 'Mario Rossi';
+  const apt  = c.req.query('apt')  || '1234A';
+  const date = c.req.query('date') || '2025-11-05';
   const html = `
     <div style="background:#fef5f5;border-left:4px solid #9b2626;padding:14px 16px;border-radius:0 8px 8px 0;margin-bottom:16px;">
       <h2 style="margin:0 0 8px;font-size:20px;color:#9b2626;">Preventivo rifiutato</h2>
@@ -710,25 +633,19 @@ app.get('/debug/preview/decision-deny', (req, res) => {
     </div>
     <p style="font-size:14px;">Ciao <strong>${esc(name)}</strong>, la tua richiesta è stata rifiutata.</p>
     <p style="font-size:13px;color:#666;">Se vuoi, invia una nuova richiesta con un'altra data.</p>`;
-  res.set('Content-Type','text/html; charset=utf-8').send(emailWrap(html));
+  return c.html(emailWrap(html));
 });
 
-/* ────────────────────────────── ADMIN ───────────────────────────────────
-   Password-gated analytics dashboard. Reads from Cloudflare D1.
-*/
+/* ── Admin ── */
 
-// Serve the dashboard HTML (from views/, not public/, so it is only reachable when authed)
-app.get('/admin', requireAdminAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'views', 'admin.html'));
-});
+app.get('/admin', requireAdminAuth, (c) => c.html(adminHtml));
 
-// Parse ?from=YYYY-MM-DD&to=YYYY-MM-DD&region=... into SQL WHERE clauses
-function buildDateRangeClause(req, column = 'created_at') {
+function buildDateRangeClause(c, column = 'created_at') {
   const where = [];
   const params = [];
-  const from = String(req.query.from || '').trim();
-  const to   = String(req.query.to   || '').trim();
-  const region = String(req.query.region || '').trim();
+  const from = String(c.req.query('from') || '').trim();
+  const to   = String(c.req.query('to')   || '').trim();
+  const region = String(c.req.query('region') || '').trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
     where.push(`${column} >= ?`);
     params.push(new Date(`${from}T00:00:00Z`).getTime());
@@ -741,21 +658,15 @@ function buildDateRangeClause(req, column = 'created_at') {
     where.push(`region = ?`);
     params.push(region);
   }
-  return {
-    sql: where.length ? 'WHERE ' + where.join(' AND ') : '',
-    params
-  };
+  return { sql: where.length ? 'WHERE ' + where.join(' AND ') : '', params };
 }
 
-app.get('/admin/api/stats', requireAdminAuth, async (req, res) => {
+app.get('/admin/api/stats', requireAdminAuth, async (c) => {
   try {
-    if (!db.isConfigured()) {
-      return res.status(503).json({ success: false, error: 'Analytics DB not configured' });
-    }
-    const { sql: ordersWhere, params: ordersParams } = buildDateRangeClause(req);
-    const { sql: quotesWhere, params: quotesParams } = buildDateRangeClause(req);
+    const db = makeDb(c.env.DB);
+    const { sql: ordersWhere, params: ordersParams } = buildDateRangeClause(c);
+    const { sql: quotesWhere, params: quotesParams } = buildDateRangeClause(c);
 
-    // Summary (orders)
     const summary = await db.query(
       `SELECT COUNT(*) AS total_orders,
               COALESCE(SUM(total_cents),0) AS total_revenue_cents,
@@ -765,7 +676,6 @@ app.get('/admin/api/stats', requireAdminAuth, async (req, res) => {
       ordersParams
     );
 
-    // Summary (quotes)
     const quotesSummary = await db.query(
       `SELECT
          SUM(CASE WHEN status='pending'  THEN 1 ELSE 0 END) AS pending_quotes,
@@ -776,7 +686,6 @@ app.get('/admin/api/stats', requireAdminAuth, async (req, res) => {
       quotesParams
     );
 
-    // Per-product — JOIN items with their parent orders to apply the same filter
     const byProduct = await db.query(
       `SELECT oi.product_id, oi.product_title,
               SUM(oi.qty) AS total_qty,
@@ -791,7 +700,6 @@ app.get('/admin/api/stats', requireAdminAuth, async (req, res) => {
       ordersParams
     );
 
-    // Per-customer
     const byCustomer = await db.query(
       `SELECT customer_email, MAX(customer_name) AS customer_name,
               COUNT(*) AS order_count,
@@ -804,7 +712,6 @@ app.get('/admin/api/stats', requireAdminAuth, async (req, res) => {
       ordersParams
     );
 
-    // Per-region
     const byRegion = await db.query(
       `SELECT region, COUNT(*) AS order_count, SUM(total_cents) AS total_revenue_cents
        FROM orders ${ordersWhere}
@@ -813,7 +720,6 @@ app.get('/admin/api/stats', requireAdminAuth, async (req, res) => {
       ordersParams
     );
 
-    // Recent orders
     const recentOrders = await db.query(
       `SELECT id, created_at, region, customer_name, customer_email, total_cents, item_count
        FROM orders ${ordersWhere}
@@ -822,7 +728,6 @@ app.get('/admin/api/stats', requireAdminAuth, async (req, res) => {
       ordersParams
     );
 
-    // Recent quotes
     const recentQuotes = await db.query(
       `SELECT id, created_at, region, requester_name, requester_email, apartment_id,
               requested_date, status, quoted_price_cents, decided_at
@@ -832,7 +737,7 @@ app.get('/admin/api/stats', requireAdminAuth, async (req, res) => {
       quotesParams
     );
 
-    res.json({
+    return c.json({
       success: true,
       summary: (summary.results || [{}])[0],
       quotesSummary: (quotesSummary.results || [{}])[0],
@@ -844,16 +749,14 @@ app.get('/admin/api/stats', requireAdminAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('Error /admin/api/stats:', err);
-    res.status(500).json({ success: false, error: err.message });
+    return c.json({ success: false, error: err.message }, 500);
   }
 });
 
-app.get('/admin/export-orders.csv', requireAdminAuth, async (req, res) => {
+app.get('/admin/export-orders.csv', requireAdminAuth, async (c) => {
   try {
-    if (!db.isConfigured()) {
-      return res.status(503).send('Analytics DB not configured');
-    }
-    const { sql: where, params } = buildDateRangeClause(req, 'o.created_at');
+    const db = makeDb(c.env.DB);
+    const { sql: where, params } = buildDateRangeClause(c, 'o.created_at');
     const result = await db.query(
       `SELECT o.id AS order_id, o.created_at, o.region, o.customer_name, o.customer_email,
               o.total_cents, o.item_count,
@@ -913,22 +816,23 @@ app.get('/admin/export-orders.csv', requireAdminAuth, async (req, res) => {
       lines.push([...base, ...productQtys].map(csvEscape).join(','));
     }
 
-    res.set('Content-Type', 'text/csv; charset=utf-8');
-    res.set('Content-Disposition',
-      `attachment; filename="orders-pivot-${new Date().toISOString().slice(0,10)}.csv"`);
-    res.send(lines.join('\n'));
+    return new Response(lines.join('\n'), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="orders-pivot-${new Date().toISOString().slice(0,10)}.csv"`
+      }
+    });
   } catch (err) {
     console.error('Error /admin/export-orders.csv:', err);
-    res.status(500).send('Export error: ' + err.message);
+    return c.text('Export error: ' + err.message, 500);
   }
 });
 
-app.get('/admin/export.csv', requireAdminAuth, async (req, res) => {
+app.get('/admin/export.csv', requireAdminAuth, async (c) => {
   try {
-    if (!db.isConfigured()) {
-      return res.status(503).send('Analytics DB not configured');
-    }
-    const { sql: where, params } = buildDateRangeClause(req, 'o.created_at');
+    const db = makeDb(c.env.DB);
+    const { sql: where, params } = buildDateRangeClause(c, 'o.created_at');
     const result = await db.query(
       `SELECT o.id AS order_id, o.created_at, o.region, o.customer_name, o.customer_email,
               o.total_cents, oi.product_id, oi.product_title, oi.qty,
@@ -965,35 +869,17 @@ app.get('/admin/export.csv', requireAdminAuth, async (req, res) => {
         r.line_total_cents != null ? (r.line_total_cents / 100).toFixed(2) : ''
       ].map(csvEscape).join(','));
     });
-    res.set('Content-Type', 'text/csv; charset=utf-8');
-    res.set('Content-Disposition', `attachment; filename="orders-${new Date().toISOString().slice(0,10)}.csv"`);
-    res.send(lines.join('\n'));
+    return new Response(lines.join('\n'), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="orders-${new Date().toISOString().slice(0,10)}.csv"`
+      }
+    });
   } catch (err) {
     console.error('Error /admin/export.csv:', err);
-    res.status(500).send('Export error: ' + err.message);
+    return c.text('Export error: ' + err.message, 500);
   }
 });
 
-/* ─────────────────────────── STARTUP VALIDATION ───────────────────────── */
-if (!process.env.INTERNAL_PW) {
-  console.error('FATAL: INTERNAL_PW is not set in .env — server cannot verify passwords.');
-  process.exit(1);
-}
-if (!process.env.ADMIN_PW) {
-  console.error('FATAL: ADMIN_PW is not set in .env — admin dashboard unreachable.');
-  process.exit(1);
-}
-if (process.env.ADMIN_PW === process.env.INTERNAL_PW) {
-  console.error('FATAL: ADMIN_PW must differ from INTERNAL_PW — MUSE users would otherwise get admin access.');
-  process.exit(1);
-}
-if ((process.env.QUOTE_SIGNING_SECRET || 'CHANGE_ME') === 'CHANGE_ME') {
-  console.warn('WARNING: QUOTE_SIGNING_SECRET is using the default value. Set a strong secret in .env for production.');
-}
-
-/* ─────────────────────────── START SERVER ───────────────────────────── */
-const PORT = process.env.PORT || 8080;
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on 0.0.0.0:${PORT}`);
-});
+export default app;
