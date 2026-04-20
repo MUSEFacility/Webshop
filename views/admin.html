@@ -194,9 +194,45 @@
         { label:'Data pulizia', key:'requested_date' },
         { label:'Regione', key:'region' },
         { label:'Stato',   raw:true, value:(r)=>`<span class="status ${esc(r.status)}">${esc(r.status)}</span>` },
-        { label:'Prezzo',  num:true, value:(r)=> r.quoted_price_cents != null ? '€'+eur(r.quoted_price_cents) : '—' }
+        { label:'Prezzo',  num:true, value:(r)=> r.quoted_price_cents != null ? '€'+eur(r.quoted_price_cents) : '—' },
+        { label:'Azioni',  raw:true, value:(r)=> r.status === 'pending'
+          ? `<button class="btn-accept" data-decide="accept" data-qid="${esc(r.id)}">Accetta</button>
+             <button class="btn-deny" data-decide="deny" data-qid="${esc(r.id)}">Rifiuta</button>`
+          : '' }
       ], data.recentQuotes);
     }
+
+    async function decideQuote(quoteId, decision) {
+      let priceCents = null;
+      if (decision === 'accept') {
+        const raw = prompt('Prezzo pulizia in EUR (IVA esclusa):');
+        if (raw == null) return;
+        const n = Number(String(raw).replace(',', '.'));
+        if (!Number.isFinite(n) || n < 0) { alert('Prezzo non valido'); return; }
+        priceCents = Math.round(n * 100);
+      } else {
+        if (!confirm('Rifiutare questo preventivo? Il cliente riceverà una email di rifiuto.')) return;
+      }
+      try {
+        const res = await fetch('/admin/api/quote-decide', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quoteId, decision, priceCents })
+        });
+        const body = await res.json();
+        if (!body.success) throw new Error(body.error || 'Errore');
+        await load();
+      } catch (err) {
+        alert('Errore: ' + err.message);
+      }
+    }
+
+    document.getElementById('recentQuotes').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-decide]');
+      if (!btn) return;
+      btn.disabled = true;
+      decideQuote(btn.dataset.qid, btn.dataset.decide).finally(() => { btn.disabled = false; });
+    });
 
     load();
   </script>
