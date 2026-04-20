@@ -63,7 +63,8 @@
       </label>
       <button type="submit">Aggiorna</button>
       <div class="spacer"></div>
-      <a id="csvLink" href="/admin/export.csv">Scarica CSV</a>
+      <a id="csvLink" href="/admin/export.csv">Scarica CSV (dettaglio)</a>
+      <a id="csvPivotLink" href="/admin/export-orders.csv">Scarica CSV (per ordine)</a>
     </form>
 
     <div id="err"></div>
@@ -133,6 +134,7 @@
       document.getElementById('err').innerHTML = '';
       const params = qs();
       document.getElementById('csvLink').href = '/admin/export.csv' + (params ? '?' + params : '');
+      document.getElementById('csvPivotLink').href = '/admin/export-orders.csv' + (params ? '?' + params : '');
       let data;
       try {
         const res = await fetch('/admin/api/stats' + (params ? '?' + params : ''));

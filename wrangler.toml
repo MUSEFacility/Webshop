@@ -1,0 +1,49 @@
+name = "muse-webshop"
+main = "src/worker.js"
+compatibility_date = "2025-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Static assets (HTML, JSON, images) served directly by Cloudflare's asset
+# handler without invoking the Worker. Requests that don't match a file fall
+# through to the Worker below.
+#
+# run_worker_first: these paths must reach the Worker even though matching
+# *.html files exist in public/. Without this, Cloudflare's auto-.html handling
+# would serve internal.html / external.html directly, bypassing the redirects.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/internal", "/external"]
+
+# D1 binding replaces the REST client in the old db.js.
+# Fill in database_id before first deploy: `wrangler d1 list`
+[[d1_databases]]
+binding = "DB"
+database_name = "muse"
+database_id = "e6728bc9-e29f-441e-94f1-2ce65cc400fa"
+
+[vars]
+APP_BASE_URL = "https://www.muse.services"
+SHOP_EMAIL = "info@muse.holiday"
+SHOP_CC_EMAIL = "info@muse.holiday"
+ENABLE_EMAIL_PREVIEWS = "false"
+EXPOSE_DECISION_URL = "false"
+# Address used as the From: on all outbound email. Must be on a Resend-verified domain.
+MAIL_FROM = "MUSE.holiday Shop <shop@muse.services>"
+
+# Secrets (set via `wrangler secret put <NAME>`):
+#   INTERNAL_PW
+#   ADMIN_PW
+#   QUOTE_SIGNING_SECRET
+#   RESEND_API_KEY
+
+# Custom domain route. Uncomment once the muse.services zone is on Cloudflare
+# (nameservers flipped at united-domains) and the certificate has issued.
+# [[routes]]
+# pattern = "www.muse.services"
+# custom_domain = true
+
+# Bundle admin.html (served only after auth) as an inline Text module.
+rules = [
+  { type = "Text", globs = ["**/*.html"], fallthrough = true }
+]
