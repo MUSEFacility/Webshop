@@ -75,6 +75,18 @@
     .order-items th { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:500; }
     .order-items td.num, .order-items th.num { text-align:right; font-variant-numeric:tabular-nums; }
     .modal-footer .btn-link { background:#fff; color:var(--green); border:1px solid var(--green); border-radius:6px; padding:9px 18px; font-size:14px; font-weight:500; text-decoration:none; }
+    .section-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    .section-tools h2 { margin:0; }
+    .section-tools .tool-btn { padding:7px 14px; font-size:13px; border:1px solid var(--green); background:#fff; color:var(--green); border-radius:6px; cursor:pointer; font-weight:500; }
+    .section-tools .tool-btn.active { background:var(--green); color:#fff; }
+    .section-tools .tool-btn:disabled { opacity:.5; cursor:default; }
+    .catalog-edit-banner { background:#fef6e0; border-left:4px solid #c79100; padding:10px 14px; border-radius:0 8px 8px 0; font-size:13px; color:#5c4900; margin-bottom:12px; line-height:1.5; }
+    .catalog-row input[type="text"], .catalog-row input[type="number"] { padding:6px 8px; border:1px solid var(--border); border-radius:5px; font-size:13px; box-sizing:border-box; }
+    .catalog-row input.cat-title { width:100%; min-width:180px; }
+    .catalog-row input.cat-price { width:96px; text-align:right; font-variant-numeric:tabular-nums; }
+    .catalog-row.inactive { opacity:.5; }
+    .catalog-row .cat-save { padding:6px 14px; font-size:13px; background:var(--green); color:#fff; border:0; border-radius:5px; cursor:pointer; font-weight:500; }
+    .catalog-row .cat-save:disabled { opacity:.5; cursor:wait; }
   </style>
 </head>
 <body>
@@ -137,6 +149,22 @@
       </div>
       <div id="recentQuotes"></div>
     </section>
+
+    <section>
+      <div class="section-tools">
+        <h2>Catalogo prodotti</h2>
+        <button type="button" id="catalogEditToggle" class="tool-btn">Modifica catalogo</button>
+      </div>
+      <div class="quote-tabs" role="tablist">
+        <button type="button" data-cat-tier="external" class="active" role="tab">External</button>
+        <button type="button" data-cat-tier="muse"    role="tab">MUSE</button>
+        <button type="button" data-cat-tier="internal" role="tab">Internal</button>
+      </div>
+      <div id="catalogEditBanner" class="catalog-edit-banner" style="display:none;">
+        Modalità modifica attiva. La sessione del catalogo dura <strong>30 minuti</strong>; dopo, ti verrà chiesto di reinserire la password al prossimo salvataggio.
+      </div>
+      <div id="catalogTable"></div>
+    </section>
   </main>
 
   <div class="modal-overlay" id="quoteModal" role="dialog" aria-modal="true" aria-labelledby="quoteModalTitle">
@@ -157,6 +185,24 @@
       <div class="modal-footer">
         <a id="orderModalCsv" class="btn-link" href="#" download>Scarica CSV</a>
         <button type="button" class="btn-cancel" id="orderModalClose">Chiudi</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="catalogPwModal" role="dialog" aria-modal="true" aria-labelledby="catalogPwModalTitle">
+    <div class="modal-card">
+      <div class="modal-header"><h3 id="catalogPwModalTitle">Sblocca modifica catalogo</h3></div>
+      <div class="modal-body">
+        <p style="margin:0 0 14px;font-size:13px;color:var(--muted);line-height:1.5">
+          Inserisci la password del catalogo per attivare la modalità di modifica. La sessione dura 30 minuti.
+        </p>
+        <label for="catalog-pw">Password catalogo</label>
+        <input id="catalog-pw" type="password" autocomplete="current-password" />
+        <div id="catalog-pw-err" class="err" style="display:none;margin-top:10px;font-size:13px"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" id="catalogPwCancel">Annulla</button>
+        <button type="button" class="btn-confirm" id="catalogPwConfirm">Sblocca</button>
       </div>
     </div>
   </div>
@@ -543,6 +589,195 @@
       }
     }
 
+    /* ══════════════════════════════════════════
+       CATALOG EDITOR
+    ══════════════════════════════════════════ */
+    let catalogProducts = [];
+    let catalogTier = 'external';
+    let catalogEditMode = false;
+
+    async function loadCatalog() {
+      try {
+        const res = await fetch('/admin/api/products');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Errore');
+        catalogProducts = data.products || [];
+        renderCatalog();
+      } catch (e) {
+        document.getElementById('catalogTable').innerHTML = `<div class="err">Errore caricamento catalogo: ${esc(e.message)}</div>`;
+      }
+    }
+
+    function renderCatalog() {
+      const container = document.getElementById('catalogTable');
+      const rows = catalogProducts.filter(p => p.tier === catalogTier);
+      if (!rows.length) {
+        container.innerHTML = `<div class="empty">Nessun prodotto nel tier ${esc(catalogTier)}.</div>`;
+        return;
+      }
+      const head = `<tr>
+        <th>Regione</th>
+        <th>ID</th>
+        <th>Titolo</th>
+        <th>Descrizione</th>
+        <th class="num">Prezzo</th>
+        <th>Attivo</th>
+        ${catalogEditMode ? '<th></th>' : ''}
+      </tr>`;
+      const body = rows.map(r => {
+        const dim = r.active ? '' : ' inactive';
+        if (catalogEditMode) {
+          const priceStr = (r.price_cents / 100).toFixed(2);
+          return `<tr class="catalog-row${dim}" data-pid="${r.id}">
+            <td>${esc(r.region)}</td>
+            <td class="num">${r.catalog_id}</td>
+            <td><input type="text" class="cat-title" value="${esc(r.title)}" maxlength="200" /></td>
+            <td>${esc(r.description || '—')}</td>
+            <td class="num"><input type="number" class="cat-price" value="${priceStr}" step="0.01" min="0" /></td>
+            <td><input type="checkbox" class="cat-active" ${r.active ? 'checked' : ''} /></td>
+            <td><button type="button" class="cat-save" data-pid="${r.id}">Salva</button></td>
+          </tr>`;
+        }
+        return `<tr class="catalog-row${dim}">
+          <td>${esc(r.region)}</td>
+          <td class="num">${r.catalog_id}</td>
+          <td>${esc(r.title)}</td>
+          <td>${esc(r.description || '—')}</td>
+          <td class="num">€${eur(r.price_cents)}</td>
+          <td>${r.active ? '✓' : '<span style="color:var(--muted)">✗</span>'}</td>
+        </tr>`;
+      }).join('');
+      container.innerHTML = `<div class="table-scroll"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+
+      if (catalogEditMode) {
+        container.querySelectorAll('.cat-save').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const pid = Number(btn.dataset.pid);
+            const tr = btn.closest('tr');
+            saveCatalogRow(pid, tr);
+          });
+        });
+      }
+    }
+
+    async function saveCatalogRow(pid, tr) {
+      const titleEl  = tr.querySelector('.cat-title');
+      const priceEl  = tr.querySelector('.cat-price');
+      const activeEl = tr.querySelector('.cat-active');
+      const btn      = tr.querySelector('.cat-save');
+      const title = titleEl.value.trim();
+      const priceCents = Math.round(Number(priceEl.value) * 100);
+      const active = activeEl.checked ? 1 : 0;
+      if (!title) { alert('Titolo non valido'); return; }
+      if (!Number.isFinite(priceCents) || priceCents < 0) { alert('Prezzo non valido'); return; }
+
+      btn.disabled = true; btn.textContent = '…';
+      const send = () => fetch('/admin/api/products/' + pid, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, price_cents: priceCents, active })
+      });
+      try {
+        let res = await send();
+        if (res.status === 401) {
+          const ok = await openCatalogPwModal();
+          if (!ok) { btn.disabled = false; btn.textContent = 'Salva'; return; }
+          res = await send();
+        }
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Errore');
+        // Replace local row, re-render
+        const idx = catalogProducts.findIndex(p => p.id === pid);
+        if (idx >= 0) catalogProducts[idx] = data.product;
+        btn.textContent = '✓';
+        setTimeout(() => { btn.disabled = false; btn.textContent = 'Salva'; }, 1500);
+      } catch (e) {
+        alert('Errore: ' + e.message);
+        btn.disabled = false; btn.textContent = 'Salva';
+      }
+    }
+
+    function openCatalogPwModal() {
+      return new Promise(resolve => {
+        const overlay = document.getElementById('catalogPwModal');
+        const input   = document.getElementById('catalog-pw');
+        const err     = document.getElementById('catalog-pw-err');
+        const confirm = document.getElementById('catalogPwConfirm');
+        const cancel  = document.getElementById('catalogPwCancel');
+        err.style.display = 'none';
+        input.value = '';
+        const close = (ok) => {
+          overlay.classList.remove('open');
+          confirm.removeEventListener('click', onConfirm);
+          cancel.removeEventListener('click', onCancel);
+          input.removeEventListener('keydown', onKey);
+          document.removeEventListener('keydown', onEsc);
+          confirm.disabled = false; confirm.textContent = 'Sblocca';
+          resolve(ok);
+        };
+        const onConfirm = async () => {
+          const pw = input.value;
+          if (!pw) return;
+          confirm.disabled = true; confirm.textContent = '…';
+          try {
+            const res = await fetch('/api/verify-catalog-password', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ password: pw })
+            });
+            const data = await res.json();
+            if (data.ok) { close(true); }
+            else {
+              confirm.disabled = false; confirm.textContent = 'Sblocca';
+              err.textContent = data.error || 'Password non corretta.';
+              err.style.display = 'block';
+              input.focus(); input.select();
+            }
+          } catch (e) {
+            confirm.disabled = false; confirm.textContent = 'Sblocca';
+            err.textContent = 'Errore: ' + e.message;
+            err.style.display = 'block';
+          }
+        };
+        const onCancel = () => close(false);
+        const onKey = (e) => { if (e.key === 'Enter') onConfirm(); };
+        const onEsc = (e) => { if (e.key === 'Escape') close(false); };
+        confirm.addEventListener('click', onConfirm);
+        cancel.addEventListener('click', onCancel);
+        input.addEventListener('keydown', onKey);
+        document.addEventListener('keydown', onEsc);
+        overlay.classList.add('open');
+        setTimeout(() => input.focus(), 0);
+      });
+    }
+
+    document.getElementById('catalogEditToggle').addEventListener('click', async () => {
+      if (catalogEditMode) {
+        // Exit edit mode (keeps the catalog cookie alive on the server until TTL — purely a UI toggle)
+        catalogEditMode = false;
+        document.getElementById('catalogEditBanner').style.display = 'none';
+        document.getElementById('catalogEditToggle').textContent = 'Modifica catalogo';
+        document.getElementById('catalogEditToggle').classList.remove('active');
+        renderCatalog();
+        return;
+      }
+      const ok = await openCatalogPwModal();
+      if (!ok) return;
+      catalogEditMode = true;
+      document.getElementById('catalogEditBanner').style.display = 'block';
+      document.getElementById('catalogEditToggle').textContent = 'Esci dalla modifica';
+      document.getElementById('catalogEditToggle').classList.add('active');
+      renderCatalog();
+    });
+
+    document.querySelectorAll('button[data-cat-tier]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        catalogTier = btn.dataset.catTier;
+        document.querySelectorAll('button[data-cat-tier]').forEach(b => b.classList.toggle('active', b === btn));
+        renderCatalog();
+      });
+    });
+
+    loadCatalog();
     load();
   </script>
 </body>

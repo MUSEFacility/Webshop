@@ -143,6 +143,16 @@ function buildAdminAuthCookie(req) {
   return `admin_auth=${encodeURIComponent(token)}; HttpOnly${secure}; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
 }
 
+// Catalog editor — step-up auth on top of admin. Even shorter TTL.
+const CATALOG_AUTH_TTL_MS = 30 * 60 * 1000; // 30min
+function buildCatalogAuthCookie(req) {
+  const token = signToken({ type: 'catalog-auth', exp: Date.now() + CATALOG_AUTH_TTL_MS });
+  const maxAge = Math.floor(CATALOG_AUTH_TTL_MS / 1000);
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || '').toLowerCase();
+  const secure = proto === 'https' ? '; Secure' : '';
+  return `catalog_auth=${encodeURIComponent(token)}; HttpOnly${secure}; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+}
+
 // Middleware: require a valid, unexpired muse_auth cookie
 function requireMuseAuth(req, res, next) {
   try {
@@ -175,6 +185,22 @@ function requireAdminAuth(req, res, next) {
     next();
   } catch {
     return fail('Sessione admin non valida.');
+  }
+}
+
+// Middleware: require catalog_auth. Used in addition to requireAdminAuth on
+// catalog editor endpoints so editing products needs both.
+function requireCatalogAuth(req, res, next) {
+  try {
+    const raw = readCookie(req, 'catalog_auth');
+    if (!raw) return res.status(401).json({ success: false, error: 'Autenticazione catalogo richiesta.' });
+    const payload = verifyToken(raw);
+    if (payload.type !== 'catalog-auth' || !payload.exp || payload.exp < Date.now()) {
+      return res.status(401).json({ success: false, error: 'Sessione catalogo scaduta.' });
+    }
+    next();
+  } catch {
+    return res.status(401).json({ success: false, error: 'Sessione catalogo non valida.' });
   }
 }
 
@@ -229,6 +255,132 @@ app.post('/api/verify-admin-password', (req, res) => {
   const ok = entered === process.env.ADMIN_PW;
   if (ok) res.setHeader('Set-Cookie', buildAdminAuthCookie(req));
   res.json({ ok });
+});
+
+// Catalog editor step-up password. Layered on top of admin auth — admin
+// stays signed in, but editing products needs a second password.
+app.post('/api/verify-catalog-password', requireAdminAuth, (req, res) => {
+  const entered = req.body.password;
+  if (!process.env.CATALOG_PW) {
+    return res.status(503).json({ ok: false, error: 'CATALOG_PW non configurato.' });
+  }
+  const ok = entered === process.env.CATALOG_PW;
+  if (ok) res.setHeader('Set-Cookie', buildCatalogAuthCookie(req));
+  res.json({ ok });
+});
+
+// Public product catalog. Replaces public/catalog.json.
+//   tier=external — public, no auth
+//   tier=muse     — requires muse_auth
+//   tier=internal — requires muse_auth
+// Returns { "Region": [{id, title, description, price}, ...], ... }
+app.get('/api/products', async (req, res) => {
+  try {
+    if (!db.isConfigured()) {
+      return res.status(503).json({ success: false, error: 'Catalog DB not configured' });
+    }
+    const tier = String(req.query.tier || 'external');
+    if (!['external', 'muse', 'internal'].includes(tier)) {
+      return res.status(400).json({ success: false, error: 'Tier non valido.' });
+    }
+    if (tier !== 'external') {
+      const raw = readCookie(req, 'muse_auth');
+      let valid = false;
+      try {
+        if (raw) {
+          const payload = verifyToken(raw);
+          valid = payload.type === 'muse-auth' && payload.exp && payload.exp >= Date.now();
+        }
+      } catch { /* fall through */ }
+      if (!valid) return res.status(401).json({ success: false, error: 'Autenticazione MUSE richiesta.' });
+    }
+    const result = await db.query(
+      `SELECT region, catalog_id, title, description, price_cents
+       FROM products WHERE tier = ? AND active = 1
+       ORDER BY region, sort_order, catalog_id`,
+      [tier]
+    );
+    const grouped = {};
+    for (const r of (result.results || [])) {
+      if (!grouped[r.region]) grouped[r.region] = [];
+      grouped[r.region].push({
+        id: r.catalog_id,
+        title: r.title,
+        description: r.description,
+        price: r.price_cents / 100
+      });
+    }
+    res.set('Cache-Control', tier === 'external' ? 'public, max-age=60' : 'private, max-age=30');
+    res.json(grouped);
+  } catch (err) {
+    console.error('Error /api/products:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin catalog editor — full list including inactive rows. Admin auth only;
+// catalog auth (step-up password) is required only to write via PATCH.
+app.get('/admin/api/products', requireAdminAuth, async (req, res) => {
+  try {
+    if (!db.isConfigured()) {
+      return res.status(503).json({ success: false, error: 'Catalog DB not configured' });
+    }
+    const result = await db.query(
+      `SELECT id, tier, region, catalog_id, title, description, price_cents, active, sort_order, updated_at
+       FROM products ORDER BY tier, region, sort_order, catalog_id`
+    );
+    res.json({ success: true, products: result.results || [] });
+  } catch (err) {
+    console.error('Error /admin/api/products:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin catalog editor — patch a single product. Both admin + catalog auth.
+// Accepts { title?, price_cents?, active? } — only supplied fields are updated.
+app.patch('/admin/api/products/:id', requireAdminAuth, requireCatalogAuth, async (req, res) => {
+  try {
+    if (!db.isConfigured()) {
+      return res.status(503).json({ success: false, error: 'Catalog DB not configured' });
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ success: false, error: 'ID non valido.' });
+    }
+    const sets = [];
+    const params = [];
+    if (typeof req.body.title === 'string') {
+      const t = req.body.title.trim();
+      if (!t || t.length > 200) return res.status(400).json({ success: false, error: 'Titolo non valido (1–200 caratteri).' });
+      sets.push('title = ?'); params.push(t);
+    }
+    if (req.body.price_cents !== undefined) {
+      const p = Number(req.body.price_cents);
+      if (!Number.isInteger(p) || p < 0) return res.status(400).json({ success: false, error: 'Prezzo non valido.' });
+      sets.push('price_cents = ?'); params.push(p);
+    }
+    if (req.body.active !== undefined) {
+      const a = req.body.active ? 1 : 0;
+      sets.push('active = ?'); params.push(a);
+    }
+    if (!sets.length) {
+      return res.status(400).json({ success: false, error: 'Nessun campo da aggiornare.' });
+    }
+    sets.push('updated_at = ?'); params.push(Date.now());
+    params.push(id);
+    await db.query(`UPDATE products SET ${sets.join(', ')} WHERE id = ?`, params);
+    const lookup = await db.query(
+      `SELECT id, tier, region, catalog_id, title, description, price_cents, active, sort_order, updated_at
+       FROM products WHERE id = ? LIMIT 1`,
+      [id]
+    );
+    const row = (lookup.results || [])[0];
+    if (!row) return res.status(404).json({ success: false, error: 'Prodotto non trovato.' });
+    res.json({ success: true, product: row });
+  } catch (err) {
+    console.error('Error PATCH /admin/api/products/:id:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // External shop — direct URL funnels through the portal
@@ -1097,6 +1249,11 @@ if (process.env.ADMIN_PW === process.env.INTERNAL_PW) {
 }
 if ((process.env.QUOTE_SIGNING_SECRET || 'CHANGE_ME') === 'CHANGE_ME') {
   console.warn('WARNING: QUOTE_SIGNING_SECRET is using the default value. Set a strong secret in .env for production.');
+}
+if (!process.env.CATALOG_PW) {
+  console.warn('WARNING: CATALOG_PW is not set — the catalog editor in /admin will refuse to unlock.');
+} else if (process.env.CATALOG_PW === process.env.ADMIN_PW) {
+  console.warn('WARNING: CATALOG_PW equals ADMIN_PW — step-up auth provides no extra protection.');
 }
 
 /* ─────────────────────────── START SERVER ───────────────────────────── */
