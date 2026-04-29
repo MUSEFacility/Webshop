@@ -87,6 +87,7 @@ function readCookie(c, name) {
 
 const MUSE_AUTH_TTL_MS = 12 * 60 * 60 * 1000;
 const ADMIN_AUTH_TTL_MS = 2 * 60 * 60 * 1000;
+const CATALOG_AUTH_TTL_MS = 30 * 60 * 1000;
 
 function buildAuthCookie(name, type, ttlMs, secret) {
   const token = signToken(secret, { type, exp: Date.now() + ttlMs });
@@ -161,6 +162,20 @@ function requireAdminAuth(c, next) {
   }
 }
 
+function requireCatalogAuth(c, next) {
+  try {
+    const raw = readCookie(c, 'catalog_auth');
+    if (!raw) return c.json({ success: false, error: 'Autenticazione catalogo richiesta.' }, 401);
+    const payload = verifyToken(c.env.QUOTE_SIGNING_SECRET, raw);
+    if (payload.type !== 'catalog-auth' || !payload.exp || payload.exp < Date.now()) {
+      return c.json({ success: false, error: 'Sessione catalogo scaduta.' }, 401);
+    }
+    return next();
+  } catch {
+    return c.json({ success: false, error: 'Sessione catalogo non valida.' }, 401);
+  }
+}
+
 /* ── Password gates ── */
 
 // GET /internal -> funnel through the portal (same behaviour as Express)
@@ -192,6 +207,116 @@ app.post('/api/verify-admin-password', async (c) => {
   const ok = body.password === c.env.ADMIN_PW;
   if (ok) c.header('Set-Cookie', buildAuthCookie('admin_auth', 'admin-auth', ADMIN_AUTH_TTL_MS, c.env.QUOTE_SIGNING_SECRET));
   return c.json({ ok });
+});
+
+app.post('/api/verify-catalog-password', requireAdminAuth, async (c) => {
+  const body = await c.req.parseBody();
+  if (!c.env.CATALOG_PW) {
+    return c.json({ ok: false, error: 'CATALOG_PW non configurato.' }, 503);
+  }
+  const ok = body.password === c.env.CATALOG_PW;
+  if (ok) c.header('Set-Cookie', buildAuthCookie('catalog_auth', 'catalog-auth', CATALOG_AUTH_TTL_MS, c.env.QUOTE_SIGNING_SECRET));
+  return c.json({ ok });
+});
+
+app.get('/api/products', async (c) => {
+  try {
+    const tier = String(c.req.query('tier') || 'external');
+    if (!['external', 'muse', 'internal'].includes(tier)) {
+      return c.json({ success: false, error: 'Tier non valido.' }, 400);
+    }
+    if (tier !== 'external') {
+      const raw = readCookie(c, 'muse_auth');
+      let valid = false;
+      try {
+        if (raw) {
+          const payload = verifyToken(c.env.QUOTE_SIGNING_SECRET, raw);
+          valid = payload.type === 'muse-auth' && payload.exp && payload.exp >= Date.now();
+        }
+      } catch { /* fall through */ }
+      if (!valid) return c.json({ success: false, error: 'Autenticazione MUSE richiesta.' }, 401);
+    }
+    const db = makeDb(c.env.DB);
+    const result = await db.query(
+      `SELECT region, catalog_id, title, description, price_cents
+       FROM products WHERE tier = ? AND active = 1
+       ORDER BY region, sort_order, catalog_id`,
+      [tier]
+    );
+    const grouped = {};
+    for (const r of (result.results || [])) {
+      if (!grouped[r.region]) grouped[r.region] = [];
+      grouped[r.region].push({
+        id: r.catalog_id,
+        title: r.title,
+        description: r.description,
+        price: r.price_cents / 100
+      });
+    }
+    c.header('Cache-Control', tier === 'external' ? 'public, max-age=60' : 'private, max-age=30');
+    return c.json(grouped);
+  } catch (err) {
+    console.error('Error /api/products:', err);
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+app.get('/admin/api/products', requireAdminAuth, async (c) => {
+  try {
+    const db = makeDb(c.env.DB);
+    const result = await db.query(
+      `SELECT id, tier, region, catalog_id, title, description, price_cents, active, sort_order, updated_at
+       FROM products ORDER BY tier, region, sort_order, catalog_id`
+    );
+    return c.json({ success: true, products: result.results || [] });
+  } catch (err) {
+    console.error('Error /admin/api/products:', err);
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+app.patch('/admin/api/products/:id', requireAdminAuth, requireCatalogAuth, async (c) => {
+  try {
+    const id = Number(c.req.param('id'));
+    if (!Number.isInteger(id) || id <= 0) {
+      return c.json({ success: false, error: 'ID non valido.' }, 400);
+    }
+    const body = await c.req.json().catch(() => ({}));
+    const sets = [];
+    const params = [];
+    if (typeof body.title === 'string') {
+      const t = body.title.trim();
+      if (!t || t.length > 200) return c.json({ success: false, error: 'Titolo non valido (1–200 caratteri).' }, 400);
+      sets.push('title = ?'); params.push(t);
+    }
+    if (body.price_cents !== undefined) {
+      const p = Number(body.price_cents);
+      if (!Number.isInteger(p) || p < 0) return c.json({ success: false, error: 'Prezzo non valido.' }, 400);
+      sets.push('price_cents = ?'); params.push(p);
+    }
+    if (body.active !== undefined) {
+      const a = body.active ? 1 : 0;
+      sets.push('active = ?'); params.push(a);
+    }
+    if (!sets.length) {
+      return c.json({ success: false, error: 'Nessun campo da aggiornare.' }, 400);
+    }
+    sets.push('updated_at = ?'); params.push(Date.now());
+    params.push(id);
+    const db = makeDb(c.env.DB);
+    await db.query(`UPDATE products SET ${sets.join(', ')} WHERE id = ?`, params);
+    const lookup = await db.query(
+      `SELECT id, tier, region, catalog_id, title, description, price_cents, active, sort_order, updated_at
+       FROM products WHERE id = ? LIMIT 1`,
+      [id]
+    );
+    const row = (lookup.results || [])[0];
+    if (!row) return c.json({ success: false, error: 'Prodotto non trovato.' }, 404);
+    return c.json({ success: true, product: row });
+  } catch (err) {
+    console.error('Error PATCH /admin/api/products/:id:', err);
+    return c.json({ success: false, error: err.message }, 500);
+  }
 });
 
 app.get('/external', (c) => c.redirect('/', 301));

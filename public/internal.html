@@ -360,49 +360,9 @@
 
   <script>
     /* ---------------------------- Catalogs ---------------------------- */
-    const PRODUCTS_BY_REGION = {
-      "Val Gardena": [
-        { id: 1,  title: "ASCIUGAMANO BAGNO 100x150",        description: "6 per Pacco",  price:  9.77 },
-        { id: 2,  title: "LENZUOLO C.ANG 2P DELUXE 200x210", description: "5 per Pacco",  price: 17.53 },
-        { id: 3,  title: "LENZUOLO C.ANG 1P DELUXE 100x210", description: "5 per Pacco",  price: 13.74 },
-        { id: 4,  title: "LENZUOLO 2P 240x300",              description: "10 per Pacco", price: 23.53 },
-        { id: 5,  title: "LENZUOLO 1P 160x300",              description: "10 per Pacco", price: 15.81 },
-        { id: 6,  title: "FEDERA GRANDE 60x80",              description: "25 per Pacco", price: 24.44 },
-        { id: 7,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
-        { id: 8,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
-        { id: 9,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
-        { id: 10, title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
-        { id: 11, title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
-        { id: 12, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
-        { id: 13, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
-      ],
-      "South Tyrol": [
-        { id: 1,  title: "ASCIUGAMANO BAGNO 100x150",        description: "6 per Pacco",  price:  9.77 },
-        { id: 2,  title: "LENZUOLO 2P 240x300",              description: "10 per Pacco", price: 23.53 },
-        { id: 3,  title: "LENZUOLO 1P 160x300",              description: "10 per Pacco", price: 15.81 },
-        { id: 4,  title: "FEDERA GRANDE 60x80",              description: "25 per Pacco", price: 24.44 },
-        { id: 5,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
-        { id: 6,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
-        { id: 7,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
-        { id: 8,  title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
-        { id: 9,  title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
-        { id: 10, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
-        { id: 11, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
-      ],
-      Garda: [
-        { id: 1,  title: "ASCIUGAMANO BAGNO 100x150",        description: "6 per Pacco",  price:  9.77 },
-        { id: 2,  title: "LENZUOLO 2P 240x300",              description: "10 per Pacco", price: 23.53 },
-        { id: 3,  title: "LENZUOLO 1P 160x300",              description: "10 per Pacco", price: 15.81 },
-        { id: 4,  title: "FEDERA GRANDE 60x80",              description: "25 per Pacco", price: 24.44 },
-        { id: 5,  title: "FEDERA PICCOLA 50x80",             description: "25 per Pacco", price: 22.55 },
-        { id: 6,  title: "COPRIPIUMINO 1P 135x200",          description: "10 per Pacco", price: 29.79 },
-        { id: 7,  title: "TOVAGLIA 150x150",                 description: "10 per Pacco", price: 24.68 },
-        { id: 8,  title: "STROFINACCI PER BICCHIERI 50x70",   description: "25 per Pacco", price: 17.20 },
-        { id: 9,  title: "SCENDIBAGNO 50x90",                description: "12 per Pacco", price: 15.08 },
-        { id: 10, title: "ASCIUGAMANO BIDET 40x60",          description: "20 per Pacco", price: 11.53 },
-        { id: 11, title: "ASCIUGAMANO VISO 50x100",          description: "12 per Pacco", price:  9.61 },
-      ]
-    };
+    // Catalog comes from /api/products?tier=internal (DB-backed, gated by muse_auth).
+    // Populated at boot before the region selector is wired up.
+    let PRODUCTS_BY_REGION = {};
 
     let currentProducts = [];
     let cart = [];
@@ -583,6 +543,19 @@
 
     // initial render
     renderCart();
+
+    // Load catalog from the DB-backed API (replaces the old PRODUCTS_BY_REGION constant).
+    // If region is already selected when the catalog arrives, refresh the product list.
+    fetch('/api/products?tier=internal')
+      .then(r => r.ok ? r.json() : {})
+      .then(data => {
+        PRODUCTS_BY_REGION = data || {};
+        if (regionEl.value) {
+          currentProducts = PRODUCTS_BY_REGION[regionEl.value] || [];
+          renderProducts();
+        }
+      })
+      .catch(() => showToast('Errore caricamento catalogo.'));
   </script>
 </body>
 </html>

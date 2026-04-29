@@ -1460,18 +1460,28 @@
   }
 
   /* ══════════════════════════════════════════
-     PRODUCT CATALOGS  (loaded from catalog.json)
+     PRODUCT CATALOGS  (loaded from /api/products?tier=...)
   ══════════════════════════════════════════ */
-  let CATALOG = null;
-  // Catalog is loaded asynchronously; updateLRegions() is called once it arrives.
-  fetch(CONFIG.api.catalog)
-    .then(r => r.json())
-    .then(data => {
-      CATALOG = data;
-      if (window._autoMuseTier) setMuseTier(true);
-      updateLRegions();
-    })
-    .catch(() => console.error('Failed to load catalog.json'));
+  let CATALOG = { external: {}, muse: {} };
+
+  async function loadCatalogForTier(tier) {
+    try {
+      const r = await fetch('/api/products?tier=' + encodeURIComponent(tier));
+      if (!r.ok) return null;
+      const data = await r.json();
+      CATALOG[tier] = data;
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
+  // Boot: always load external; if the auto-flag says MUSE (or user already has
+  // a muse_auth cookie), the muse fetch happens below in setMuseTier(true).
+  loadCatalogForTier('external').then(() => {
+    if (window._autoMuseTier) setMuseTier(true);
+    else updateLRegions();
+  });
 
   /* ══════════════════════════════════════════
      SHOP FACTORY
@@ -1652,6 +1662,10 @@
 
   function setMuseTier(active) {
     isMuseTier = active;
+    // Lazy-load muse-tier catalog the first time the user activates MUSE
+    if (active && (!CATALOG.muse || Object.keys(CATALOG.muse).length === 0)) {
+      loadCatalogForTier('muse').then(() => updateLRegions());
+    }
     // Update tier toggle labels and visibility
     document.getElementById('l-tier-name').textContent = active ? 'MUSE Besitzer' : 'Standard';
     document.getElementById('l-tier-toggle-btn').textContent = active ? 'Torna a prezzi standard' : 'Accedi come MUSE Besitzer';

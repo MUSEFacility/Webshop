@@ -36,6 +36,7 @@ MAIL_FROM = "MUSE.holiday Shop <shop@muse.services>"
 # Secrets (set via `wrangler secret put <NAME>`):
 #   INTERNAL_PW
 #   ADMIN_PW
+#   CATALOG_PW         (optional — gates the catalog editor in /admin)
 #   QUOTE_SIGNING_SECRET
 #   RESEND_API_KEY
 
