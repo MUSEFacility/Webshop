@@ -746,7 +746,7 @@ app.get('/admin/api/stats', requireAdminAuth, async (c) => {
       `SELECT id, created_at, region, customer_name, customer_email, total_cents, item_count
        FROM orders ${ordersWhere}
        ORDER BY created_at DESC
-       LIMIT 50`,
+       LIMIT 500`,
       ordersParams
     );
 
@@ -755,7 +755,7 @@ app.get('/admin/api/stats', requireAdminAuth, async (c) => {
               requested_date, status, quoted_price_cents, decided_at, decision_notes
        FROM cleaning_quotes ${quotesWhere}
        ORDER BY created_at DESC
-       LIMIT 50`,
+       LIMIT 500`,
       quotesParams
     );
 
@@ -823,6 +823,32 @@ app.post('/admin/api/quote-decide', requireAdminAuth, async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.error('Error /admin/api/quote-decide:', err);
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+app.get('/admin/api/order/:id', requireAdminAuth, async (c) => {
+  try {
+    const orderId = String(c.req.param('id') || '').trim();
+    if (!orderId) return c.json({ success: false, error: 'ID ordine mancante.' }, 400);
+
+    const db = makeDb(c.env.DB);
+    const orderResult = await db.query(
+      `SELECT id, created_at, region, customer_name, customer_email, total_cents, item_count, source
+       FROM orders WHERE id = ? LIMIT 1`,
+      [orderId]
+    );
+    const order = (orderResult.results || [])[0];
+    if (!order) return c.json({ success: false, error: 'Ordine non trovato.' }, 404);
+
+    const itemsResult = await db.query(
+      `SELECT product_id, product_title, qty, unit_price_cents, line_total_cents
+       FROM order_items WHERE order_id = ? ORDER BY id`,
+      [orderId]
+    );
+    return c.json({ success: true, order: { ...order, items: itemsResult.results || [] } });
+  } catch (err) {
+    console.error('Error /admin/api/order/:id:', err);
     return c.json({ success: false, error: err.message }, 500);
   }
 });
@@ -906,14 +932,23 @@ app.get('/admin/export-orders.csv', requireAdminAuth, async (c) => {
 app.get('/admin/export.csv', requireAdminAuth, async (c) => {
   try {
     const db = makeDb(c.env.DB);
-    const { sql: where, params } = buildDateRangeClause(c, 'o.created_at');
+    const orderId = String(c.req.query('orderId') || '').trim();
+    let whereSql, params;
+    if (orderId) {
+      whereSql = 'WHERE o.id = ?';
+      params = [orderId];
+    } else {
+      const built = buildDateRangeClause(c, 'o.created_at');
+      whereSql = built.sql.replace(/region/g, 'o.region');
+      params = built.params;
+    }
     const result = await db.query(
       `SELECT o.id AS order_id, o.created_at, o.region, o.customer_name, o.customer_email,
               o.total_cents, oi.product_id, oi.product_title, oi.qty,
               oi.unit_price_cents, oi.line_total_cents
        FROM orders o
        LEFT JOIN order_items oi ON oi.order_id = o.id
-       ${where.replace(/region/g, 'o.region')}
+       ${whereSql}
        ORDER BY o.created_at DESC`,
       params
     );

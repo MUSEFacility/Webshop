@@ -831,22 +831,22 @@ app.get('/admin/api/stats', requireAdminAuth, async (req, res) => {
       ordersParams
     );
 
-    // Recent orders
+    // Recent orders (client-side search/pagination on the dashboard)
     const recentOrders = await db.query(
       `SELECT id, created_at, region, customer_name, customer_email, total_cents, item_count
        FROM orders ${ordersWhere}
        ORDER BY created_at DESC
-       LIMIT 50`,
+       LIMIT 500`,
       ordersParams
     );
 
-    // Recent quotes
+    // Recent quotes (client-side search/pagination + Pendenti/Decise tabs)
     const recentQuotes = await db.query(
       `SELECT id, created_at, region, requester_name, requester_email, apartment_id,
               requested_date, status, quoted_price_cents, decided_at, decision_notes
        FROM cleaning_quotes ${quotesWhere}
        ORDER BY created_at DESC
-       LIMIT 50`,
+       LIMIT 500`,
       quotesParams
     );
 
@@ -915,6 +915,34 @@ app.post('/admin/api/quote-decide', requireAdminAuth, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('Error /admin/api/quote-decide:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/admin/api/order/:id', requireAdminAuth, async (req, res) => {
+  try {
+    if (!db.isConfigured()) {
+      return res.status(503).json({ success: false, error: 'Analytics DB not configured' });
+    }
+    const orderId = String(req.params.id || '').trim();
+    if (!orderId) return res.status(400).json({ success: false, error: 'ID ordine mancante.' });
+
+    const orderResult = await db.query(
+      `SELECT id, created_at, region, customer_name, customer_email, total_cents, item_count, source
+       FROM orders WHERE id = ? LIMIT 1`,
+      [orderId]
+    );
+    const order = (orderResult.results || [])[0];
+    if (!order) return res.status(404).json({ success: false, error: 'Ordine non trovato.' });
+
+    const itemsResult = await db.query(
+      `SELECT product_id, product_title, qty, unit_price_cents, line_total_cents
+       FROM order_items WHERE order_id = ? ORDER BY id`,
+      [orderId]
+    );
+    res.json({ success: true, order: { ...order, items: itemsResult.results || [] } });
+  } catch (err) {
+    console.error('Error /admin/api/order/:id:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -999,14 +1027,23 @@ app.get('/admin/export.csv', requireAdminAuth, async (req, res) => {
     if (!db.isConfigured()) {
       return res.status(503).send('Analytics DB not configured');
     }
-    const { sql: where, params } = buildDateRangeClause(req, 'o.created_at');
+    const orderId = String(req.query.orderId || '').trim();
+    let whereSql, params;
+    if (orderId) {
+      whereSql = 'WHERE o.id = ?';
+      params = [orderId];
+    } else {
+      const built = buildDateRangeClause(req, 'o.created_at');
+      whereSql = built.sql.replace(/region/g, 'o.region');
+      params = built.params;
+    }
     const result = await db.query(
       `SELECT o.id AS order_id, o.created_at, o.region, o.customer_name, o.customer_email,
               o.total_cents, oi.product_id, oi.product_title, oi.qty,
               oi.unit_price_cents, oi.line_total_cents
        FROM orders o
        LEFT JOIN order_items oi ON oi.order_id = o.id
-       ${where.replace(/region/g, 'o.region')}
+       ${whereSql}
        ORDER BY o.created_at DESC`,
       params
     );
