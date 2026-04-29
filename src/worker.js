@@ -210,7 +210,7 @@ app.post('/api/verify-admin-password', async (c) => {
 });
 
 app.post('/api/verify-catalog-password', requireAdminAuth, async (c) => {
-  const body = await c.req.parseBody();
+  const body = await c.req.json().catch(() => ({}));
   if (!c.env.CATALOG_PW) {
     return c.json({ ok: false, error: 'CATALOG_PW non configurato.' }, 503);
   }
