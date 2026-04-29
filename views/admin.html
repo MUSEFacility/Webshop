@@ -60,6 +60,21 @@
     .modal-footer .btn-confirm { background:var(--green); color:#fff; border-color:var(--green); }
     .modal-footer .btn-confirm.deny { background:#b00020; border-color:#b00020; }
     .modal-footer button:disabled { opacity:.5; cursor:wait; }
+    .modal-card.wide { max-width:640px; }
+    .table-search { margin-bottom:10px; }
+    .table-search input { width:100%; max-width:320px; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; }
+    .table-scroll { overflow-x:auto; }
+    .table-pager { display:flex; align-items:center; gap:10px; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); font-size:13px; color:var(--muted); }
+    .table-pager button { padding:4px 12px; border:1px solid var(--border); background:#fff; color:var(--text); border-radius:5px; cursor:pointer; font-size:13px; }
+    .table-pager button:disabled { opacity:.4; cursor:default; }
+    .table-pager .pager-meta { margin-left:auto; }
+    tbody tr.clickable { cursor:pointer; }
+    tbody tr.clickable:hover { background:#fafaf6; }
+    .order-items { width:100%; border-collapse:collapse; font-size:13px; margin-top:8px; }
+    .order-items th, .order-items td { padding:7px 10px; border-bottom:1px solid var(--border); text-align:left; }
+    .order-items th { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:500; }
+    .order-items td.num, .order-items th.num { text-align:right; font-variant-numeric:tabular-nums; }
+    .modal-footer .btn-link { background:#fff; color:var(--green); border:1px solid var(--green); border-radius:6px; padding:9px 18px; font-size:14px; font-weight:500; text-decoration:none; }
   </style>
 </head>
 <body>
@@ -135,6 +150,17 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="orderModal" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle">
+    <div class="modal-card wide">
+      <div class="modal-header"><h3 id="orderModalTitle">Dettagli ordine</h3></div>
+      <div class="modal-body" id="orderModalBody"></div>
+      <div class="modal-footer">
+        <a id="orderModalCsv" class="btn-link" href="#" download>Scarica CSV</a>
+        <button type="button" class="btn-cancel" id="orderModalClose">Chiudi</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const eur = (c) => (Number(c || 0) / 100).toFixed(2);
     const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -155,17 +181,90 @@
       return p.toString();
     }
 
-    function renderTable(container, columns, rows, emptyMsg) {
-      if (!rows || !rows.length) {
-        container.innerHTML = `<div class="empty">${emptyMsg || 'Nessun dato'}</div>`;
-        return;
+    const tableState = new WeakMap();
+    function renderTable(container, columns, rows, emptyMsg, options) {
+      rows = rows || [];
+      const opts = Object.assign({ pageSize: 0 }, options || {});
+      let state = tableState.get(container);
+      if (!state || state.rowsRef !== rows) {
+        state = { query: '', page: 1, rowsRef: rows };
+        tableState.set(container, state);
       }
-      const head = columns.map(c => `<th class="${c.num ? 'num' : ''}">${esc(c.label)}</th>`).join('');
-      const body = rows.map(r => '<tr>' + columns.map(c => {
-        const v = c.value ? c.value(r) : r[c.key];
-        return `<td class="${c.num ? 'num' : ''}">${c.raw ? v : esc(v)}</td>`;
-      }).join('') + '</tr>').join('');
-      container.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+      const useSearch = !!opts.search;
+      const searchHtml = useSearch
+        ? `<div class="table-search"><input type="search" placeholder="${esc(opts.search.placeholder || 'Cerca…')}" value="${esc(state.query)}" /></div>`
+        : '';
+      container.innerHTML = `${searchHtml}<div class="table-area"></div><div class="table-pager-area"></div>`;
+      const tableArea = container.querySelector('.table-area');
+      const pagerArea = container.querySelector('.table-pager-area');
+
+      function redraw() {
+        let filtered = rows;
+        if (useSearch && state.query) {
+          const q = state.query.toLowerCase();
+          filtered = rows.filter(r => opts.search.keys.some(k => String(r[k] == null ? '' : r[k]).toLowerCase().includes(q)));
+        }
+        const pageSize = opts.pageSize > 0 ? opts.pageSize : filtered.length || 1;
+        const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+        if (state.page > totalPages) state.page = totalPages;
+        const start = (state.page - 1) * pageSize;
+        const end   = Math.min(start + pageSize, filtered.length);
+        const paged = filtered.slice(start, end);
+
+        const head = columns.map(c => `<th class="${c.num ? 'num' : ''}">${esc(c.label)}</th>`).join('');
+        let body;
+        if (paged.length) {
+          body = paged.map((r, i) => {
+            const cls = opts.onRowClick ? 'clickable' : '';
+            return `<tr class="${cls}" data-row-idx="${start + i}">` + columns.map(c => {
+              const v = c.value ? c.value(r) : r[c.key];
+              return `<td class="${c.num ? 'num' : ''}">${c.raw ? v : esc(v)}</td>`;
+            }).join('') + '</tr>';
+          }).join('');
+        } else {
+          body = `<tr><td class="empty" colspan="${columns.length}" style="text-align:center;padding:16px;color:var(--muted)">${esc(state.query ? 'Nessun risultato.' : (emptyMsg || 'Nessun dato'))}</td></tr>`;
+        }
+        tableArea.innerHTML = `<div class="table-scroll"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+
+        const usePager = opts.pageSize > 0 && filtered.length > opts.pageSize;
+        if (usePager) {
+          pagerArea.innerHTML = `<div class="table-pager">
+            <button type="button" data-pager="prev" ${state.page <= 1 ? 'disabled' : ''}>‹</button>
+            <span>${state.page} / ${totalPages}</span>
+            <button type="button" data-pager="next" ${state.page >= totalPages ? 'disabled' : ''}>›</button>
+            <span class="pager-meta">${filtered.length} risultat${filtered.length === 1 ? 'o' : 'i'}${state.query ? ' (filtrati)' : ''}</span>
+          </div>`;
+        } else if (state.query && filtered.length) {
+          pagerArea.innerHTML = `<div class="table-pager"><span class="pager-meta">${filtered.length} risultat${filtered.length === 1 ? 'o' : 'i'} (filtrati)</span></div>`;
+        } else {
+          pagerArea.innerHTML = '';
+        }
+
+        if (opts.onRowClick) {
+          tableArea.querySelectorAll('tbody tr.clickable').forEach(tr => {
+            tr.addEventListener('click', () => {
+              const idx = Number(tr.dataset.rowIdx);
+              if (Number.isFinite(idx) && filtered[idx]) opts.onRowClick(filtered[idx]);
+            });
+          });
+        }
+        pagerArea.querySelectorAll('button[data-pager]').forEach(b => {
+          b.addEventListener('click', () => {
+            if (b.dataset.pager === 'prev') state.page = Math.max(1, state.page - 1);
+            else                            state.page = Math.min(totalPages, state.page + 1);
+            redraw();
+          });
+        });
+      }
+
+      if (useSearch) {
+        container.querySelector('.table-search input').addEventListener('input', (e) => {
+          state.query = e.target.value;
+          state.page = 1;
+          redraw();
+        });
+      }
+      redraw();
     }
 
     async function load() {
@@ -200,7 +299,9 @@
         { label:'Qtà',      key:'total_qty', num:true },
         { label:'Ordini',   key:'order_count', num:true },
         { label:'Fatturato', num:true, value:(r)=>'€'+eur(r.total_revenue_cents) }
-      ], data.byProduct);
+      ], data.byProduct, null, {
+        search: { keys: ['product_title', 'product_id'], placeholder: 'Cerca prodotto…' }
+      });
 
       renderTable(document.getElementById('byCustomer'), [
         { label:'Cliente', key:'customer_name' },
@@ -208,7 +309,9 @@
         { label:'Ordini',  key:'order_count', num:true },
         { label:'Pezzi',   key:'total_qty', num:true },
         { label:'Totale',  num:true, value:(r)=>'€'+eur(r.total_revenue_cents) }
-      ], data.byCustomer);
+      ], data.byCustomer, null, {
+        search: { keys: ['customer_name', 'customer_email'], placeholder: 'Cerca cliente…' }
+      });
 
       renderTable(document.getElementById('byRegion'), [
         { label:'Regione', key:'region' },
@@ -223,7 +326,11 @@
         { label:'Regione', key:'region' },
         { label:'Pezzi',   key:'item_count', num:true },
         { label:'Totale',  num:true, value:(r)=>'€'+eur(r.total_cents) }
-      ], data.recentOrders);
+      ], data.recentOrders, null, {
+        search: { keys: ['customer_name', 'customer_email', 'region'], placeholder: 'Cerca per nome, email o regione…' },
+        pageSize: 25,
+        onRowClick: (r) => openOrderModal(r.id)
+      });
 
       lastQuotes = data.recentQuotes || [];
       renderQuotes();
@@ -237,6 +344,7 @@
       const container = document.getElementById('recentQuotes');
       const pending = lastQuotes.filter(r => r.status === 'pending');
       const decided = lastQuotes.filter(r => r.status !== 'pending');
+      const quoteSearch = { keys: ['requester_name', 'requester_email', 'apartment_id', 'region'], placeholder: 'Cerca per nome, email, appartamento o regione…' };
       if (quotesView === 'pending') {
         renderTable(container, [
           { label:'Data',    value:(r)=>fmtDate(r.created_at) },
@@ -248,7 +356,7 @@
           { label:'Azioni',  raw:true, value:(r)=>
             `<button class="btn-accept" data-decide="accept" data-qid="${esc(r.id)}">Accetta</button>
              <button class="btn-deny" data-decide="deny" data-qid="${esc(r.id)}">Rifiuta</button>` }
-        ], pending, 'Nessun preventivo in sospeso.');
+        ], pending, 'Nessun preventivo in sospeso.', { search: quoteSearch, pageSize: 25 });
       } else {
         renderTable(container, [
           { label:'Data',    value:(r)=>fmtDate(r.created_at) },
@@ -262,7 +370,7 @@
           { label:'Note',    raw:true, value:(r)=> r.decision_notes
             ? `<span title="${esc(r.decision_notes)}">${esc(truncate(r.decision_notes, 80))}</span>`
             : '<span style="color:var(--muted)">—</span>' }
-        ], decided, 'Nessun preventivo deciso ancora.');
+        ], decided, 'Nessun preventivo deciso ancora.', { search: quoteSearch, pageSize: 25 });
       }
     }
 
@@ -380,6 +488,60 @@
       btn.disabled = true;
       decideQuote(btn.dataset.qid, btn.dataset.decide).finally(() => { btn.disabled = false; });
     });
+
+    async function openOrderModal(orderId) {
+      const overlay = document.getElementById('orderModal');
+      const body    = document.getElementById('orderModalBody');
+      const title   = document.getElementById('orderModalTitle');
+      const csvLink = document.getElementById('orderModalCsv');
+      const closeBtn= document.getElementById('orderModalClose');
+
+      const close = () => {
+        overlay.classList.remove('open');
+        closeBtn.removeEventListener('click', close);
+        overlay.removeEventListener('click', onBackdrop);
+        document.removeEventListener('keydown', onKey);
+      };
+      const onBackdrop = (e) => { if (e.target === overlay) close(); };
+      const onKey = (e) => { if (e.key === 'Escape') close(); };
+
+      title.textContent = 'Dettagli ordine';
+      body.innerHTML = '<div class="empty" style="padding:32px;text-align:center;color:var(--muted)">Caricamento…</div>';
+      csvLink.href = '/admin/export.csv?orderId=' + encodeURIComponent(orderId);
+      overlay.classList.add('open');
+      closeBtn.addEventListener('click', close);
+      overlay.addEventListener('click', onBackdrop);
+      document.addEventListener('keydown', onKey);
+
+      try {
+        const res = await fetch('/admin/api/order/' + encodeURIComponent(orderId));
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Errore');
+        const o = data.order;
+        title.textContent = 'Ordine #' + String(o.id).slice(0, 8);
+        const itemsRows = (o.items || []).length
+          ? (o.items || []).map(it => `<tr>
+              <td>${esc(it.product_title)}<br/><span style="color:var(--muted);font-size:11px">${esc(it.product_id)}</span></td>
+              <td class="num">${Number(it.qty || 0)}</td>
+              <td class="num">€${eur(it.unit_price_cents)}</td>
+              <td class="num">€${eur(it.line_total_cents)}</td>
+            </tr>`).join('')
+          : `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:14px">Nessun articolo nell'ordine.</td></tr>`;
+        body.innerHTML = `
+          <div class="meta">
+            <div><strong>Data:</strong> ${esc(fmtDate(o.created_at))}</div>
+            <div><strong>Cliente:</strong> ${esc(o.customer_name)} &lt;${esc(o.customer_email)}&gt;</div>
+            <div><strong>Regione:</strong> ${esc(o.region)}${o.source ? ` <span style="color:var(--muted);font-size:12px">(${esc(o.source)})</span>` : ''}</div>
+            <div><strong>Totale:</strong> €${eur(o.total_cents)} &mdash; ${Number(o.item_count || 0)} pezzi</div>
+          </div>
+          <table class="order-items">
+            <thead><tr><th>Prodotto</th><th class="num">Qtà</th><th class="num">Prezzo unit.</th><th class="num">Totale linea</th></tr></thead>
+            <tbody>${itemsRows}</tbody>
+          </table>`;
+      } catch (err) {
+        body.innerHTML = `<div class="err">Errore caricamento ordine: ${esc(err.message)}</div>`;
+      }
+    }
 
     load();
   </script>
