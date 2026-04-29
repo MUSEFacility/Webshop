@@ -37,6 +37,29 @@
     .status.accepted { background:#e3f3e9; color:#1f6640; }
     .status.denied   { background:#fde8e8; color:#9b2626; }
     .err { background:#fef5f5; border-left:4px solid #b00020; padding:12px 16px; border-radius:0 8px 8px 0; color:#9b2626; font-size:14px; margin-bottom:16px; }
+    .quote-tabs { display:flex; gap:8px; margin-bottom:12px; }
+    .quote-tabs button { padding:6px 14px; font-size:13px; border:1px solid var(--border); background:#fff; color:var(--muted); border-radius:6px; cursor:pointer; font-weight:500; }
+    .quote-tabs button.active { background:var(--green); color:#fff; border-color:var(--green); }
+    .btn-accept { background:var(--accent); color:#fff; border:0; border-radius:5px; padding:6px 12px; font-size:13px; cursor:pointer; margin-right:6px; }
+    .btn-deny { background:#b00020; color:#fff; border:0; border-radius:5px; padding:6px 12px; font-size:13px; cursor:pointer; }
+    .btn-accept:disabled, .btn-deny:disabled { opacity:.5; cursor:wait; }
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; align-items:center; justify-content:center; padding:16px; }
+    .modal-overlay.open { display:flex; }
+    .modal-card { background:var(--card); border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.18); max-width:480px; width:100%; max-height:calc(100vh - 32px); overflow:auto; }
+    .modal-header { padding:18px 22px 12px; border-bottom:1px solid var(--border); }
+    .modal-header h3 { margin:0; font-size:16px; color:var(--green); }
+    .modal-body { padding:18px 22px; }
+    .modal-body .meta { background:#f8f5f0; border-radius:8px; padding:12px 14px; font-size:13px; line-height:1.6; margin-bottom:16px; color:var(--text); }
+    .modal-body .meta strong { color:var(--green); }
+    .modal-body label { display:block; font-size:12px; color:var(--muted); margin:14px 0 4px; text-transform:uppercase; letter-spacing:.05em; }
+    .modal-body input, .modal-body textarea { width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:6px; font-size:14px; font-family:inherit; box-sizing:border-box; }
+    .modal-body textarea { min-height:80px; resize:vertical; }
+    .modal-footer { padding:12px 22px 18px; display:flex; gap:10px; justify-content:flex-end; }
+    .modal-footer button { padding:9px 18px; border-radius:6px; font-size:14px; font-weight:500; cursor:pointer; border:1px solid var(--border); }
+    .modal-footer .btn-cancel { background:#fff; color:var(--muted); }
+    .modal-footer .btn-confirm { background:var(--green); color:#fff; border-color:var(--green); }
+    .modal-footer .btn-confirm.deny { background:#b00020; border-color:#b00020; }
+    .modal-footer button:disabled { opacity:.5; cursor:wait; }
   </style>
 </head>
 <body>
@@ -93,9 +116,24 @@
 
     <section>
       <h2>Preventivi pulizia</h2>
+      <div class="quote-tabs" role="tablist">
+        <button type="button" id="quoteTabPending" class="active" role="tab">Pendenti</button>
+        <button type="button" id="quoteTabDecided" role="tab">Decise</button>
+      </div>
       <div id="recentQuotes"></div>
     </section>
   </main>
+
+  <div class="modal-overlay" id="quoteModal" role="dialog" aria-modal="true" aria-labelledby="quoteModalTitle">
+    <div class="modal-card">
+      <div class="modal-header"><h3 id="quoteModalTitle">Decisione preventivo</h3></div>
+      <div class="modal-body" id="quoteModalBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" id="quoteModalCancel">Annulla</button>
+        <button type="button" class="btn-confirm" id="quoteModalConfirm">Conferma</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     const eur = (c) => (Number(c || 0) / 100).toFixed(2);
@@ -187,37 +225,146 @@
         { label:'Totale',  num:true, value:(r)=>'€'+eur(r.total_cents) }
       ], data.recentOrders);
 
-      renderTable(document.getElementById('recentQuotes'), [
-        { label:'Data',    value:(r)=>fmtDate(r.created_at) },
-        { label:'Cliente', key:'requester_name' },
-        { label:'App.',    key:'apartment_id' },
-        { label:'Data pulizia', key:'requested_date' },
-        { label:'Regione', key:'region' },
-        { label:'Stato',   raw:true, value:(r)=>`<span class="status ${esc(r.status)}">${esc(r.status)}</span>` },
-        { label:'Prezzo',  num:true, value:(r)=> r.quoted_price_cents != null ? '€'+eur(r.quoted_price_cents) : '—' },
-        { label:'Azioni',  raw:true, value:(r)=> r.status === 'pending'
-          ? `<button class="btn-accept" data-decide="accept" data-qid="${esc(r.id)}">Accetta</button>
-             <button class="btn-deny" data-decide="deny" data-qid="${esc(r.id)}">Rifiuta</button>`
-          : '' }
-      ], data.recentQuotes);
+      lastQuotes = data.recentQuotes || [];
+      renderQuotes();
+    }
+
+    let lastQuotes = [];
+    let quotesView = 'pending';
+    const truncate = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+
+    function renderQuotes() {
+      const container = document.getElementById('recentQuotes');
+      const pending = lastQuotes.filter(r => r.status === 'pending');
+      const decided = lastQuotes.filter(r => r.status !== 'pending');
+      if (quotesView === 'pending') {
+        renderTable(container, [
+          { label:'Data',    value:(r)=>fmtDate(r.created_at) },
+          { label:'Cliente', key:'requester_name' },
+          { label:'App.',    key:'apartment_id' },
+          { label:'Data pulizia', key:'requested_date' },
+          { label:'Regione', key:'region' },
+          { label:'Stato',   raw:true, value:(r)=>`<span class="status ${esc(r.status)}">${esc(r.status)}</span>` },
+          { label:'Azioni',  raw:true, value:(r)=>
+            `<button class="btn-accept" data-decide="accept" data-qid="${esc(r.id)}">Accetta</button>
+             <button class="btn-deny" data-decide="deny" data-qid="${esc(r.id)}">Rifiuta</button>` }
+        ], pending, 'Nessun preventivo in sospeso.');
+      } else {
+        renderTable(container, [
+          { label:'Data',    value:(r)=>fmtDate(r.created_at) },
+          { label:'Cliente', key:'requester_name' },
+          { label:'App.',    key:'apartment_id' },
+          { label:'Data pulizia', key:'requested_date' },
+          { label:'Regione', key:'region' },
+          { label:'Stato',   raw:true, value:(r)=>`<span class="status ${esc(r.status)}">${esc(r.status)}</span>` },
+          { label:'Prezzo',  num:true, value:(r)=> r.quoted_price_cents != null ? '€'+eur(r.quoted_price_cents) : '—' },
+          { label:'Decisa',  value:(r)=>fmtDate(r.decided_at) },
+          { label:'Note',    raw:true, value:(r)=> r.decision_notes
+            ? `<span title="${esc(r.decision_notes)}">${esc(truncate(r.decision_notes, 80))}</span>`
+            : '<span style="color:var(--muted)">—</span>' }
+        ], decided, 'Nessun preventivo deciso ancora.');
+      }
+    }
+
+    document.getElementById('quoteTabPending').addEventListener('click', () => {
+      quotesView = 'pending';
+      document.getElementById('quoteTabPending').classList.add('active');
+      document.getElementById('quoteTabDecided').classList.remove('active');
+      renderQuotes();
+    });
+    document.getElementById('quoteTabDecided').addEventListener('click', () => {
+      quotesView = 'decided';
+      document.getElementById('quoteTabDecided').classList.add('active');
+      document.getElementById('quoteTabPending').classList.remove('active');
+      renderQuotes();
+    });
+
+    function openQuoteModal(quote, decision) {
+      return new Promise((resolve, reject) => {
+        const overlay = document.getElementById('quoteModal');
+        const body    = document.getElementById('quoteModalBody');
+        const title   = document.getElementById('quoteModalTitle');
+        const confirm = document.getElementById('quoteModalConfirm');
+        const cancel  = document.getElementById('quoteModalCancel');
+
+        title.textContent = decision === 'accept' ? 'Accetta preventivo' : 'Rifiuta preventivo';
+        confirm.textContent = decision === 'accept' ? 'Accetta & invia' : 'Rifiuta & invia';
+        confirm.classList.toggle('deny', decision === 'deny');
+
+        const priceField = decision === 'accept' ? `
+          <label for="qm-price">Prezzo pulizia (€, IVA esclusa)</label>
+          <input id="qm-price" type="number" min="0" step="0.01" placeholder="Es. 80.00" />
+        ` : '';
+        const intent = decision === 'accept'
+          ? 'Il cliente riceverà una email di conferma con il prezzo indicato.'
+          : 'Il cliente riceverà una email di rifiuto. L\'azione non è reversibile dalla dashboard.';
+
+        body.innerHTML = `
+          <div class="meta">
+            <div><strong>Cliente:</strong> ${esc(quote.requester_name)} &lt;${esc(quote.requester_email)}&gt;</div>
+            <div><strong>Appartamento:</strong> ${esc(quote.apartment_id)}</div>
+            <div><strong>Data pulizia:</strong> ${esc(quote.requested_date)}</div>
+            <div><strong>Regione:</strong> ${esc(quote.region)}</div>
+          </div>
+          ${priceField}
+          <label for="qm-notes">Note interne (facoltative, non inviate al cliente)</label>
+          <textarea id="qm-notes" maxlength="1000" placeholder="Es. apartamento al 3° piano, chiavi in cassetta…"></textarea>
+          <div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5">${intent}</div>
+        `;
+
+        let done = false;
+        const close = () => {
+          if (done) return;
+          done = true;
+          overlay.classList.remove('open');
+          confirm.disabled = false;
+          confirm.removeEventListener('click', onConfirm);
+          cancel.removeEventListener('click', onCancel);
+          overlay.removeEventListener('click', onBackdrop);
+          document.removeEventListener('keydown', onKey);
+        };
+        const onConfirm = () => {
+          let priceCents = null;
+          if (decision === 'accept') {
+            const n = Number(document.getElementById('qm-price').value);
+            if (!Number.isFinite(n) || n < 0) { alert('Prezzo non valido'); return; }
+            priceCents = Math.round(n * 100);
+          }
+          const notes = document.getElementById('qm-notes').value.trim();
+          confirm.disabled = true;
+          close();
+          resolve({ priceCents, notes: notes || null });
+        };
+        const onCancel = () => { close(); reject(new Error('cancelled')); };
+        const onBackdrop = (e) => { if (e.target === overlay) onCancel(); };
+        const onKey = (e) => {
+          if (e.key === 'Escape') onCancel();
+          else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) onConfirm();
+        };
+
+        confirm.addEventListener('click', onConfirm);
+        cancel.addEventListener('click', onCancel);
+        overlay.addEventListener('click', onBackdrop);
+        document.addEventListener('keydown', onKey);
+        overlay.classList.add('open');
+        setTimeout(() => {
+          const first = document.getElementById(decision === 'accept' ? 'qm-price' : 'qm-notes');
+          if (first) first.focus();
+        }, 0);
+      });
     }
 
     async function decideQuote(quoteId, decision) {
-      let priceCents = null;
-      if (decision === 'accept') {
-        const raw = prompt('Prezzo pulizia in EUR (IVA esclusa):');
-        if (raw == null) return;
-        const n = Number(String(raw).replace(',', '.'));
-        if (!Number.isFinite(n) || n < 0) { alert('Prezzo non valido'); return; }
-        priceCents = Math.round(n * 100);
-      } else {
-        if (!confirm('Rifiutare questo preventivo? Il cliente riceverà una email di rifiuto.')) return;
-      }
+      const quote = lastQuotes.find(q => q.id === quoteId);
+      if (!quote) return;
+      let payload;
+      try { payload = await openQuoteModal(quote, decision); }
+      catch { return; }
       try {
         const res = await fetch('/admin/api/quote-decide', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ quoteId, decision, priceCents })
+          body: JSON.stringify({ quoteId, decision, ...payload })
         });
         const body = await res.json();
         if (!body.success) throw new Error(body.error || 'Errore');

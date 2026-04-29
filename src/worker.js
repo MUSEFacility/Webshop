@@ -435,7 +435,7 @@ app.get('/quote/decision', (c) => {
   }
 });
 
-async function sendQuoteDecisionEmails(env, { name, email, apartmentId, dateISO, action, price }) {
+async function sendQuoteDecisionEmails(env, { name, email, apartmentId, dateISO, action, price, notes }) {
   if (action === 'accept') {
     const html = `
       <div style="background:#f4faf6;border-left:4px solid #1f6640;padding:14px 16px;border-radius:0 8px 8px 0;margin-bottom:16px;">
@@ -474,23 +474,27 @@ async function sendQuoteDecisionEmails(env, { name, email, apartmentId, dateISO,
     });
   }
 
+  const noteHtml = notes
+    ? `<p style="margin:8px 0 0;font-size:13px;color:#666;"><strong>Note interne:</strong><br/>${esc(notes).replace(/\n/g, '<br/>')}</p>`
+    : '';
   await sendEmail(env, {
     to:      env.SHOP_EMAIL,
     subject: `Decisione inviata — ${String(action).toUpperCase()} — ${apartmentId} (${dateISO})`,
     html:    emailWrap(`<p>Decisione: <strong>${esc(action)}</strong> ${price ? `— Prezzo €${price.toFixed(2)}` : ''}<br/>
-           Cliente: ${esc(name)} &lt;${esc(email)}&gt;</p>`)
+           Cliente: ${esc(name)} &lt;${esc(email)}&gt;</p>${noteHtml}`)
   });
 }
 
-function persistQuoteDecision(db, ctx, { quoteId, action, price }) {
+function persistQuoteDecision(db, ctx, { quoteId, action, price, notes }) {
   ctx.waitUntil((async () => {
     if (!quoteId) return;
     try {
       const status = action === 'accept' ? 'accepted' : 'denied';
       const priceCents = action === 'accept' ? Math.round(price * 100) : null;
+      const decisionNotes = (typeof notes === 'string' && notes.trim()) ? notes.trim() : null;
       await db.query(
-        `UPDATE cleaning_quotes SET status = ?, quoted_price_cents = ?, decided_at = ? WHERE id = ?`,
-        [status, priceCents, Date.now(), quoteId]
+        `UPDATE cleaning_quotes SET status = ?, quoted_price_cents = ?, decided_at = ?, decision_notes = ? WHERE id = ?`,
+        [status, priceCents, Date.now(), decisionNotes, quoteId]
       );
     } catch (e) {
       console.error('D1 update failed (quote decision):', e.message);
@@ -748,7 +752,7 @@ app.get('/admin/api/stats', requireAdminAuth, async (c) => {
 
     const recentQuotes = await db.query(
       `SELECT id, created_at, region, requester_name, requester_email, apartment_id,
-              requested_date, status, quoted_price_cents, decided_at
+              requested_date, status, quoted_price_cents, decided_at, decision_notes
        FROM cleaning_quotes ${quotesWhere}
        ORDER BY created_at DESC
        LIMIT 50`,
@@ -787,6 +791,11 @@ app.post('/admin/api/quote-decide', requireAdminAuth, async (c) => {
       price = priceCents / 100;
     }
 
+    let notes = null;
+    if (typeof body.notes === 'string') {
+      notes = body.notes.trim().slice(0, 1000) || null;
+    }
+
     const db = makeDb(c.env.DB);
     const lookup = await db.query(
       `SELECT id, requester_name, requester_email, apartment_id, requested_date, status
@@ -805,10 +814,11 @@ app.post('/admin/api/quote-decide', requireAdminAuth, async (c) => {
       apartmentId: row.apartment_id,
       dateISO: row.requested_date,
       action: decision,
-      price
+      price,
+      notes
     });
 
-    persistQuoteDecision(db, c.executionCtx, { quoteId, action: decision, price });
+    persistQuoteDecision(db, c.executionCtx, { quoteId, action: decision, price, notes });
 
     return c.json({ success: true });
   } catch (err) {
