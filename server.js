@@ -66,7 +66,16 @@ function emailWrap(bodyHtml) {
 </body></html>`;
 }
 
-/* ────────────────────────── DOMAIN REDIRECTS ──────────────────────────
+/* ────────────────────────── REDIRECT TO NEW DOMAIN ──────────────────────────
+   musevision.it is being retired. All traffic is permanently redirected to
+   www.muse.services. Uses 308 for POST (preserves method) and 301 for GET/HEAD.
+   Place this BEFORE all other middleware so nothing else runs. */
+app.use((req, res) => {
+  const code = (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') ? 308 : 301;
+  return res.redirect(code, `https://www.muse.services${req.originalUrl}`);
+});
+
+/* ────────────────────────── OLD DOMAIN REDIRECTS (kept for reference) ──────────────────────────
    Allow the Fly domain for testing, still force www → apex, and don't
    interfere with ACME TLS validation. Put this BEFORE other routes. */
 app.use((req, res, next) => {
