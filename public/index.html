@@ -568,6 +568,71 @@
 
     .repairs-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 32px; }
 
+    /* Filter row: search input + apartment chips */
+    .repairs-filters {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .repairs-filters #r-search {
+      flex: 0 1 220px;
+      min-width: 0;
+      padding: 7px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--card-border);
+      background: var(--card);
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .repairs-filters #r-search:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(31,102,64,.12);
+    }
+    .apt-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      flex: 1 1 auto;
+      padding-bottom: 2px;
+      scrollbar-width: thin;
+    }
+    .apt-chips::-webkit-scrollbar { height: 4px; }
+    .apt-chips::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 4px; }
+    .apt-chip {
+      flex: 0 0 auto;
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--card-border);
+      background: var(--card);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .15s ease, color .15s ease, border-color .15s ease;
+      white-space: nowrap;
+    }
+    .apt-chip:hover { background: var(--panel); color: var(--text); }
+    .apt-chip.active { background: var(--text); color: #fff; border-color: var(--text); }
+    .apt-chip .apt-chip-count {
+      font-size: 10px; font-weight: 500; opacity: .75;
+    }
+
+    /* "Altro" group warning */
+    .repairs-altro-note {
+      font-size: 11px;
+      color: var(--faint);
+      font-style: italic;
+      padding: 2px 0 6px;
+      margin-top: -2px;
+    }
+
     .repair-card {
       background: var(--card);
       border: 1px solid var(--card-border);
@@ -696,6 +761,24 @@
 
     .repairs-empty { padding: 16px 0; color: var(--faint); font-size: 14px; }
     .repairs-error { padding: 16px 0; color: var(--refused-text); font-size: 14px; }
+
+    /* Mobile polish: bigger tap targets, un-stick header on narrow phones */
+    @media (max-width: 480px) {
+      .repairs-header {
+        position: static;
+        padding: 10px 0;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background: transparent;
+      }
+      .toggle-done-btn { width: 100%; justify-content: center; }
+      .repairs-filters { flex-direction: column; align-items: stretch; }
+      .repairs-filters #r-search { flex: none; width: 100%; }
+      .apt-chips { width: 100%; }
+      .card-actions { justify-content: stretch; }
+      .card-actions .action-btn { flex: 1; min-height: 40px; padding: 10px 14px; font-size: 12px; }
+      .card-images img { width: 88px; height: 88px; }
+    }
 
     /* ── Image full-screen preview ── */
     .img-preview {
@@ -1117,10 +1200,10 @@
         <p style="color:var(--muted); font-size:14px; margin:0 0 32px;">Biancheria, pulizie e gestione riparazioni per il tuo appartamento.</p>
 
         <div class="home-cards">
-          <button class="home-card" id="hc-riparazioni" style="display:none" onclick="switchTab('riparazioni')">
+          <button class="home-card home-card--muted" id="hc-riparazioni" style="display:none" onclick="onRiparazioniHomeClick()">
             <div class="home-card-icon">🔧</div>
             <div class="home-card-title">Riparazioni</div>
-            <div class="home-card-sub">Gestisci le segnalazioni</div>
+            <div class="home-card-sub">Accesso con link dal PMS</div>
           </button>
           <button class="home-card" onclick="switchTab('pulizie')">
             <div class="home-card-icon">🧺</div>
@@ -1286,10 +1369,14 @@
           <div class="repairs-right">
             <div id="r-badge" class="pill-badge">Caricamento…</div>
             <span id="r-last-updated" style="font-size:11px; color:var(--faint);"></span>
-            <button id="r-refresh" class="pill-btn" type="button" title="Aggiorna">↻</button>
+            <button id="r-refresh" class="pill-btn" type="button" title="Aggiorna"><span aria-hidden="true">↻</span> Aggiorna</button>
           </div>
         </div>
         <button id="r-toggle-done" class="toggle-done-btn" type="button">Mostra completati / rifiutati</button>
+        <div class="repairs-filters">
+          <input id="r-search" type="search" placeholder="Cerca…" autocomplete="off" />
+          <div id="r-apt-chips" class="apt-chips"></div>
+        </div>
         <div id="r-msg"></div>
       </div>
 
@@ -1420,7 +1507,7 @@
     // Auto-refresh repairs when tab is active
     if (repairsAutoRefresh) { clearInterval(repairsAutoRefresh); repairsAutoRefresh = null; }
     if (name === 'riparazioni' && repairsLoaded) {
-      repairsAutoRefresh = setInterval(() => loadRepairsList(), CONFIG.repairsRefreshMs);
+      repairsAutoRefresh = setInterval(() => loadRepairsList({ silent: true }), CONFIG.repairsRefreshMs);
     }
     // Prefill Pulizie name/email from Lavanderia inputs (one-way, only when empty)
     if (name === 'cleaning') {
@@ -1435,13 +1522,25 @@
 
   tabBtns.forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
-  // Show repairs tab only if ?token= present
+  // Show repairs tab only if ?token= present; otherwise the home card stays muted with a hint.
   const urlParams = new URLSearchParams(location.search);
   const repairsToken = urlParams.get('token');
   if (repairsToken) {
+    // A valid PMS-generated token implies MUSE-staff access, so reveal both the
+    // top-bar tab and the home card regardless of current tier.
     document.getElementById('tab-btn-riparazioni').style.display = '';
-    document.getElementById('hc-riparazioni').style.display = '';
+    const hc = document.getElementById('hc-riparazioni');
+    hc.style.display = '';
+    hc.classList.remove('home-card--muted');
+    const sub = hc.querySelector('.home-card-sub');
+    if (sub) sub.textContent = 'Gestisci le segnalazioni';
   }
+
+  // Click handler for the muted-state Riparazioni card — explains how to unlock it.
+  window.onRiparazioniHomeClick = function() {
+    if (repairsToken) { switchTab('riparazioni'); return; }
+    showToast('Apri questa pagina con il link inviato dal tuo PMS per gestire le riparazioni.', 4500);
+  };
 
   /* ══════════════════════════════════════════
      TOAST
@@ -1684,6 +1783,11 @@
     if (cleaningBtn)  cleaningBtn.style.display  = active ? '' : 'none';
     if (cleaningCard) cleaningCard.style.display = active ? '' : 'none';
     if (!active && activeTab === 'cleaning') switchTab('home');
+    // Riparazioni (damage tracker) is MUSE-only on the home grid; the tab itself
+    // additionally requires a ?token= link from the PMS.
+    const riparazioniCard = document.getElementById('hc-riparazioni');
+    if (riparazioniCard) riparazioniCard.style.display = active ? '' : 'none';
+    if (!active && activeTab === 'riparazioni') switchTab('home');
     if (typeof rebuildTabOrder === 'function') rebuildTabOrder();
     // Update the persistent MUSE login/logout button in the top nav
     const navAuthBtn = document.getElementById('nav-auth-btn');
@@ -2088,6 +2192,18 @@
   let repairsLoaded = false;
   let lastRepairsData = null;
   let showDone = false;
+  let searchTerm = '';
+  let activeApt = null; // null = "Tutti"
+  const collapsedApts = new Set();
+  let searchDebounceId = null;
+
+  const STATUS_LABELS = {
+    'COMUNICATO': { label: 'Da fare',        icon: '🆕' },
+    'CONSIGLIO':  { label: 'Suggerimento',   icon: '💡' },
+    'IN CORSO':   { label: 'In lavorazione', icon: '🔧' },
+    'RIFIUTATO':  { label: 'Rifiutato',      icon: '✖' },
+    'COMPLETATO': { label: 'Fatto',          icon: '✓' }
+  };
 
   const ORDER_STATUS = { 'IN CORSO': 1, 'RIFIUTATO': 2, 'COMPLETATO': 3 };
   function normStatus(s) { return (s || '').toString().trim().toUpperCase(); }
@@ -2144,7 +2260,7 @@
   }
 
   if (repairsToken) {
-    rRefreshBtn.addEventListener('click', loadRepairsList);
+    rRefreshBtn.addEventListener('click', () => loadRepairsList());
 
     rToggleBtn.addEventListener('click', () => {
       showDone = !showDone;
@@ -2152,20 +2268,39 @@
       rToggleBtn.classList.toggle('active', showDone);
       renderRepairs(lastRepairsData);
     });
+
+    const rSearchEl = document.getElementById('r-search');
+    if (rSearchEl) {
+      rSearchEl.addEventListener('input', (e) => {
+        const v = (e.target.value || '').toString();
+        clearTimeout(searchDebounceId);
+        searchDebounceId = setTimeout(() => {
+          searchTerm = v.trim().toLowerCase();
+          renderRepairs(lastRepairsData);
+        }, 150);
+      });
+    }
   } else {
     rBadgeEl.textContent = 'Token mancante';
   }
 
-  function loadRepairsList() {
+  function loadRepairsList(opts) {
+    const silent = !!(opts && opts.silent);
     rClearMsg();
-    rBadgeEl.textContent = 'Caricamento…';
-    rListEl.innerHTML = '';
+    if (!silent) {
+      rBadgeEl.textContent = 'Caricamento…';
+      rListEl.innerHTML = '';
+    }
+    const prevScroll = silent ? window.scrollY : 0;
 
     fetch(LIST_URL + '?token=' + encodeURIComponent(repairsToken))
       .then(r => r.json())
       .then(data => {
         lastRepairsData = data;
         renderRepairs(data);
+        if (silent) {
+          requestAnimationFrame(() => window.scrollTo(0, prevScroll));
+        }
         const now = new Date();
         document.getElementById('r-last-updated').textContent =
           `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -2192,6 +2327,59 @@
     renderRepairs(lastRepairsData);
   }
 
+  // Group by apartment (parse "108A - description" → "108A")
+  function parseApt(name) {
+    if (!name) return 'Altro';
+    const m = name.match(/^(\S+)\s*[-–—]/);
+    return m ? m[1] : 'Altro';
+  }
+
+  function matchesSearch(t) {
+    if (!searchTerm) return true;
+    const hay = ((t.name || '') + ' ' + (t.description || '') + ' ' + getOwnerComment(t)).toLowerCase();
+    return hay.indexOf(searchTerm) !== -1;
+  }
+
+  function renderAptChips(allItems) {
+    const chipsEl = document.getElementById('r-apt-chips');
+    if (!chipsEl) return;
+    // Count items per apartment (after showDone filter, before search/apt filter)
+    const counts = new Map();
+    for (const t of allItems) {
+      const apt = parseApt(t.name);
+      counts.set(apt, (counts.get(apt) || 0) + 1);
+    }
+    const apts = [...counts.keys()].sort((a, b) => {
+      if (a === 'Altro') return 1;
+      if (b === 'Altro') return -1;
+      return a.localeCompare(b);
+    });
+
+    chipsEl.innerHTML = '';
+    if (apts.length <= 1) return; // no point showing chips for a single group
+
+    function mkChip(label, key, count) {
+      const c = document.createElement('button');
+      c.type = 'button';
+      c.className = 'apt-chip' + ((activeApt === key || (key === null && activeApt === null)) ? ' active' : '');
+      c.textContent = label;
+      if (count != null) {
+        const span = document.createElement('span');
+        span.className = 'apt-chip-count';
+        span.textContent = count;
+        c.appendChild(span);
+      }
+      c.addEventListener('click', () => {
+        activeApt = key;
+        renderRepairs(lastRepairsData);
+      });
+      return c;
+    }
+
+    chipsEl.appendChild(mkChip('Tutti', null, allItems.length));
+    for (const apt of apts) chipsEl.appendChild(mkChip(apt, apt, counts.get(apt)));
+  }
+
   function renderRepairs(data) {
     if (!data) return;
     rSubEl.textContent = data.parent?.name || '';
@@ -2199,17 +2387,32 @@
     const all = Array.isArray(data.subtasks) ? data.subtasks : [];
     const closedCount = all.filter(t => { const s = normStatus(t.status); return s === 'COMPLETATO' || s === 'RIFIUTATO'; }).length;
     const openCount = all.length - closedCount;
-    const visible = showDone ? all : all.filter(t => { const s = normStatus(t.status); return s !== 'COMPLETATO' && s !== 'RIFIUTATO'; });
+    const baseList = showDone ? all : all.filter(t => { const s = normStatus(t.status); return s !== 'COMPLETATO' && s !== 'RIFIUTATO'; });
 
-    rBadgeEl.textContent = showDone
+    // Build chips off the base list (so chip counts reflect what's currently in scope)
+    renderAptChips(baseList);
+
+    // Drop the active apartment if it no longer has items in scope
+    if (activeApt !== null && !baseList.some(t => parseApt(t.name) === activeApt)) {
+      activeApt = null;
+    }
+
+    const visible = baseList.filter(t => (activeApt === null || parseApt(t.name) === activeApt) && matchesSearch(t));
+
+    const filterActive = activeApt !== null || !!searchTerm;
+    const baseBadge = showDone
       ? `${all.length} totali (${closedCount} chiusi)`
       : `${openCount} aperti` + (closedCount ? ` • ${closedCount} nascosti` : '');
+    rBadgeEl.textContent = filterActive ? `${visible.length} di ${baseList.length}` : baseBadge;
+
     rListEl.innerHTML = '';
 
     if (!visible.length) {
       const el = document.createElement('div');
       el.className = 'repairs-empty';
-      el.textContent = showDone ? 'Nessun elemento' : 'Nessun elemento aperto';
+      el.textContent = filterActive
+        ? 'Nessun risultato per il filtro attivo'
+        : (showDone ? 'Nessun elemento' : 'Nessun elemento aperto');
       rListEl.appendChild(el);
       return;
     }
@@ -2223,12 +2426,6 @@
       return new Date(b.dateCreatedIso || 0) - new Date(a.dateCreatedIso || 0);
     });
 
-    // Group by apartment (parse "108A - description" → "108A")
-    function parseApt(name) {
-      if (!name) return 'Altro';
-      const m = name.match(/^(\S+)\s*[-–—]/);
-      return m ? m[1] : 'Altro';
-    }
     const groups = new Map();
     for (const t of visible) {
       const apt = parseApt(t.name);
@@ -2248,16 +2445,25 @@
 
       // Only show group headers if there are multiple groups
       if (sortedGroups.length > 1) {
+        const isCollapsed = collapsedApts.has(apt);
         const header = document.createElement('div');
-        header.className = 'repairs-group-header';
+        header.className = 'repairs-group-header' + (isCollapsed ? ' collapsed' : '');
         header.innerHTML = `<span class="group-chevron">▼</span> ${apt} <span class="group-count">${openInGroup} apert${openInGroup===1?'o':'i'}</span>`;
         const cardsWrap = document.createElement('div');
-        cardsWrap.className = 'repairs-group-cards';
+        cardsWrap.className = 'repairs-group-cards' + (isCollapsed ? ' collapsed' : '');
         header.addEventListener('click', () => {
+          if (collapsedApts.has(apt)) collapsedApts.delete(apt);
+          else collapsedApts.add(apt);
           header.classList.toggle('collapsed');
           cardsWrap.classList.toggle('collapsed');
         });
         rListEl.appendChild(header);
+        if (apt === 'Altro') {
+          const note = document.createElement('div');
+          note.className = 'repairs-altro-note';
+          note.textContent = 'Manca il codice apartamento all\'inizio del nome — controlla su ClickUp.';
+          rListEl.appendChild(note);
+        }
         rListEl.appendChild(cardsWrap);
         for (const t of items) cardsWrap.appendChild(renderOneCard(t));
       } else {
@@ -2288,7 +2494,9 @@
 
       const pill = document.createElement('span');
       pill.className = 'status-pill status-pill--' + stKey;
-      pill.textContent = t.status || '—';
+      const meta = STATUS_LABELS[stNorm];
+      pill.textContent = meta ? `${meta.icon} ${meta.label}` : (t.status || '—');
+      if (t.status) pill.setAttribute('data-raw-status', t.status);
 
       titleRow.appendChild(titleEl);
       titleRow.appendChild(pill);
@@ -2353,25 +2561,17 @@
       const allBtns = [];
 
       if (canMove(stNorm, 'IN CORSO')) {
-        const btn = makeActionBtn('Prendi in carico', 'action-btn btn-neutral');
+        const btn = makeActionBtn('Inizia', 'action-btn btn-neutral');
         btn.addEventListener('click', () => setRepairStatus(t.id, 'IN CORSO', '', allBtns));
         allBtns.push(btn);
         actions.appendChild(btn);
       }
 
       if (canMove(stNorm, 'RIFIUTATO')) {
-        const btn = makeActionBtn('Rifiuta', 'action-btn btn-danger');
+        const btn = makeActionBtn('Non fattibile', 'action-btn btn-danger');
         btn.addEventListener('click', async () => {
           const reason = await refusalReasonModal();
           if (reason === null) return;
-          const ok = await confirmModal({
-            title: 'Conferma rifiuto',
-            message: 'Vuoi rifiutare questo intervento? L\'azione è irreversibile.',
-            danger: true,
-            confirmLabel: 'Rifiuta',
-            cancelLabel: 'Annulla'
-          });
-          if (!ok) return;
           setRepairStatus(t.id, 'RIFIUTATO', reason, allBtns);
         });
         allBtns.push(btn);
@@ -2379,13 +2579,13 @@
       }
 
       if (canMove(stNorm, 'COMPLETATO')) {
-        const btn = makeActionBtn('Completa', 'action-btn btn-confirm');
+        const btn = makeActionBtn('Segna come fatto', 'action-btn btn-confirm');
         btn.addEventListener('click', async () => {
           const ok = await confirmModal({
             title: 'Conferma completamento',
             message: 'Segnare come completato? L\'azione è irreversibile.',
             danger: false,
-            confirmLabel: 'Completa',
+            confirmLabel: 'Segna come fatto',
             cancelLabel: 'Annulla'
           });
           if (!ok) return;
@@ -2509,7 +2709,7 @@
     const okBtn = document.createElement('button');
     okBtn.type = 'button';
     okBtn.className = 'modal-foot-btn danger';
-    okBtn.textContent = 'Continua';
+    okBtn.textContent = 'Rifiuta intervento';
     okBtn.addEventListener('click', () => {
       const v = ta.value.trim();
       if (!v) { ta.focus(); showToast('Inserisci un motivo prima di continuare.'); return; }
