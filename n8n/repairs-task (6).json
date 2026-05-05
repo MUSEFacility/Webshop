@@ -1,0 +1,120 @@
+{
+  "name": "repairs-task",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repairs-task",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b003bd53-8848-4a47-8fea-fc249dfa58ee",
+      "name": "Webhook",
+      "webhookId": "b02c5a5f-ebf6-44de-ad4d-d8053e2deb82"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "get",
+        "id": "={{$json.body.subtaskId}}"
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "72ca5e0d-a39c-48f4-97de-81fef2724851",
+      "name": "Get a task",
+      "credentials": {
+        "clickUpOAuth2Api": {
+          "id": "34jDYBMeiCkrARE9",
+          "name": "Lukas - ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const OWNER_COMMENT_FIELD_ID = \"8d333333-de44-4f45-b4d1-079540d99313\";\n\nfunction getOwnerComment(customFields) {\n  if (!Array.isArray(customFields)) return \"\";\n  const field = customFields.find(f => f.id === OWNER_COMMENT_FIELD_ID);\n  if (!field || field.value == null) return \"\";\n  return typeof field.value === \"string\"\n    ? field.value\n    : JSON.stringify(field.value);\n}\n\nconst task = $json;\n\nconst images = (task.attachments || [])\n  .map(a => a.url || a.url_download || a.url_thumb)\n  .filter(Boolean);\n\nreturn [{\n  json: {\n    id: task.id,\n    name: task.name || \"\",\n    description: task.description || \"\",\n    status: task.status?.status || \"\",\n    images,\n    ownerComment: getOwnerComment(task.custom_fields),\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "a3782c7e-4945-4a85-9947-a61d6f62a39b",
+      "name": "map subtask"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        624,
+        0
+      ],
+      "id": "28dabb3e-f4e8-4758-80cc-dbe985662904",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get a task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a task": {
+      "main": [
+        [
+          {
+            "node": "map subtask",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "map subtask": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "fd58024b-ea06-42e5-b229-96a84e5b0a5d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "590fc68a97e38023c3d2a62d0bb8bf0b685833354062f07ffccd7262074efb25"
+  },
+  "id": "qcCktTu58zsq_1m6ytCOj",
+  "tags": []
+}

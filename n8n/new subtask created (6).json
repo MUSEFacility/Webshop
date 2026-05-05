@@ -1,0 +1,574 @@
+{
+  "name": "new subtask created",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d35fdfe2-993e-4f14-8dda-32fd56af0c29",
+              "name": "parentTaskId",
+              "value": "={{$json.parent}}",
+              "type": "string"
+            },
+            {
+              "id": "365c7954-8f7c-46a1-a374-73e37c19ac48",
+              "name": "subtaskId",
+              "value": "={{$json.id}}",
+              "type": "string"
+            },
+            {
+              "id": "0815e8d8-a5bb-426a-a7b0-4d82190407ad",
+              "name": "subtaskName",
+              "value": "={{$json.name}}",
+              "type": "string"
+            },
+            {
+              "id": "0c141a28-eb38-4fb9-b3e1-7d714db04df6",
+              "name": "subtaskUrl",
+              "value": "={{$json.url}}",
+              "type": "string"
+            },
+            {
+              "id": "4fb9ba70-3f6d-4c67-b769-8ac1cf847de6",
+              "name": "subtaskCreatedAt",
+              "value": "={{$json.date_created}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        -16
+      ],
+      "id": "9d03092e-f655-4581-abd9-c703febd2025",
+      "name": "set - fields for lookup"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Ot0VApHdAKXgUQTr",
+          "mode": "list",
+          "cachedResultName": "repair_tokens",
+          "cachedResultUrl": "/projects/5yW1jW7R5grGIkAM/datatables/Ot0VApHdAKXgUQTr"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "parentTaskId",
+              "keyValue": "={{$json.parentTaskId}}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        64
+      ],
+      "id": "31af3ece-b544-48a8-8958-14d63099d45c",
+      "name": "datatable - get owner row"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {
+          "includeUnpaired": false
+        }
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1088,
+        0
+      ],
+      "id": "ae185ae8-c883-4e53-9e19-902983b6f50e",
+      "name": "merge - row + subtask"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "18ee55b1-add8-42cd-8f8c-2e795769ff43",
+              "leftValue": "={{$json.id}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1296,
+        0
+      ],
+      "id": "f7b724ba-53f7-4121-8c6f-8387a0992430",
+      "name": "if - row exists"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const now = Date.now();\nconst lastRaw = $json.lastEmailSentAt ?? null;\nconst lastMs = lastRaw ? Date.parse(lastRaw) : 0;\n\nconst canSend = !lastMs || (now - lastMs) >= 24 * 60 * 60 * 1000;\n\nreturn {\n  ...$json,\n  canSend,\n  nowIso: new Date(now).toISOString(),\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        -96
+      ],
+      "id": "15c3a595-1813-4ae6-9c01-ee38792793b8",
+      "name": "code - check 24h cooldown"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dbb7e2d0-0081-4986-8604-60e52b340ffc",
+              "leftValue": "={{$json.canSend}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1712,
+        -96
+      ],
+      "id": "262cd11a-8570-4cd8-845f-8053d2e15e66",
+      "name": "if - can send"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ from: 'MUSE.holiday <shop@muse.services>', to: [$json.mail], bcc: ['dolomites@muse.holiday', 'facilitymuse@gmail.com'], subject: $json.subject, html: $json.html }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2096,
+        -320
+      ],
+      "id": "b6d3d273-b8aa-4609-9d7c-3b0aa3797fec",
+      "name": "gmail - send new subtask email",
+      "webhookId": "2465b19c-c4df-4958-a366-a23bc667108d",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_HEADER_AUTH_ID",
+          "name": "Resend API (Header Auth)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Ot0VApHdAKXgUQTr",
+          "mode": "list",
+          "cachedResultName": "repair_tokens",
+          "cachedResultUrl": "/projects/5yW1jW7R5grGIkAM/datatables/Ot0VApHdAKXgUQTr"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lastEmailSentAt": "={{ $json.nowIso }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "AppNumber",
+              "displayName": "AppNumber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "parentTaskId",
+              "displayName": "parentTaskId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "token",
+              "displayName": "token",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "mail",
+              "displayName": "mail",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "lastEmailSentAt",
+              "displayName": "lastEmailSentAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "lastEmailType",
+              "displayName": "lastEmailType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2160,
+        -112
+      ],
+      "id": "efc96f21-f29f-482e-991b-a7ffb5781617",
+      "name": "datatable - update lastEmailSentAt"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -208,
+        80
+      ],
+      "id": "62b57e91-6aa1-460c-8755-df7bc3afe57d",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "getAll",
+        "team": "4760669",
+        "space": "90150214619",
+        "folderless": true,
+        "list": "901520930726",
+        "filters": {
+          "archived": false,
+          "includeClosed": false,
+          "subtasks": true
+        }
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        0,
+        80
+      ],
+      "id": "f58cb380-02f8-4e3b-8dbb-ff7cb19cf7fb",
+      "name": "Get many tasks",
+      "credentials": {
+        "clickUpOAuth2Api": {
+          "id": "34jDYBMeiCkrARE9",
+          "name": "Lukas - ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8ed66195-dc95-4617-b924-7f72d950db33",
+              "leftValue": "={{ $json.parent !== null && $json.parent !== '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        208,
+        80
+      ],
+      "id": "8cf54fc3-9ebf-4805-adf5-ec70596b98fb",
+      "name": "if - only subtasks1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const now = Date.now();\nconst createdMs = Number($json.date_created ?? 0);\n\n// 6 hour window\nconst oneHour = 300 * 60 * 1000;\n\nconst isRecent = createdMs && (now - createdMs) <= oneHour;\n\nif (!isRecent) return null;\n\nreturn {\n  ...$json,\n  parentTaskId: $json.parent\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        -16
+      ],
+      "id": "6b2d9365-1faf-4cee-8050-984fc6b7a120",
+      "name": "code - created in last 300 minutes"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Code node: \"Build NEW subtask HTML + footer (grouped by parentTaskId)\"\n// Mode: Run Once for All Items\n\nconst items = $input.all();\n\n// Footer (unchanged)\nconst footer = `\n<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" align=\"center\" style=\"border-collapse:collapse;margin:0 auto;\">\n  <tr>\n    <td style=\"padding:0 12px 0 0;\">\n      <a href=\"https://www.instagram.com/muse.holiday/\" target=\"_blank\">\n        <img src=\"https://cdn.muse.holiday/instagram-blue_3x.png\" width=\"24\" height=\"24\" border=\"0\" style=\"display:block;\">\n      </a>\n    </td>\n    <td style=\"padding:0 12px 0 0;\">\n      <a href=\"https://www.facebook.com/muse.holiday/\" target=\"_blank\">\n        <img src=\"https://cdn.muse.holiday/facebook-blue_3x.png\" width=\"24\" height=\"24\" border=\"0\" style=\"display:block;\">\n      </a>\n    </td>\n    <td style=\"padding:0 12px 0 0;\">\n      <a href=\"https://tiktok.com/@muse.holiday/\" target=\"_blank\">\n        <img src=\"https://cdn.muse.holiday/tiktok-blue_3x.png\" width=\"24\" height=\"24\" border=\"0\" style=\"display:block;\">\n      </a>\n    </td>\n    <td style=\"padding:0 12px 0 0;\">\n      <a href=\"https://wa.me/390471786250\" target=\"_blank\">\n        <img src=\"https://cdn.muse.holiday/whatsapp-blue_3x.png\" width=\"24\" height=\"24\" border=\"0\" style=\"display:block;\">\n      </a>\n    </td>\n    <td>\n      <a href=\"https://www.iata.org/\" target=\"_blank\">\n        <img src=\"https://cdn.muse.holiday/iata-blue_3x.png\" width=\"24\" height=\"24\" border=\"0\" style=\"display:block;\">\n      </a>\n    </td>\n  </tr>\n</table>\n\n<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\" style=\"border-collapse:collapse;margin:18px 0 0 0;\">\n  <tr>\n    <td align=\"center\" style=\"padding:18px 0 0 0;\">\n      <img src=\"https://cdn.muse.holiday/logo.png?w=130&amp;h=80\" width=\"130\" height=\"80\" border=\"0\" style=\"display:block;margin:0 auto;\">\n    </td>\n  </tr>\n  <tr>\n    <td align=\"center\" style=\"padding:12px 0 0 0;font-family:Helvetica, Arial, sans-serif;font-size:14px;line-height:20px;color:#033A53;\">\n      <div style=\"font-weight:700;\">Apartment4holiday Srl</div>\n      <div>IT02875780211</div>\n      <div>IATA TIDS 96191852</div>\n    </td>\n  </tr>\n</table>\n`;\n\n// Group by parentTaskId\nconst grouped = {};\n\nfor (const item of items) {\n  const j = item.json;\n  const parentTaskId = j.parentTaskId;\n  if (!parentTaskId) continue;\n\n  if (!grouped[parentTaskId]) {\n    grouped[parentTaskId] = {\n      parentTaskId,\n      mail: j.mail,\n      token: j.token ?? \"\",\n      nowIso: j.nowIso,\n      datatableRowId: j.id,\n      appNumber: j.AppNumber ?? \"\",\n      subtasks: [],\n    };\n  }\n\n  if (j.subtaskName) grouped[parentTaskId].subtasks.push(j.subtaskName);\n}\n\nconst results = [];\n\nfor (const parentTaskId of Object.keys(grouped)) {\n  const g = grouped[parentTaskId];\n\n  const link = `https://www.musevision.it/?token=${encodeURIComponent(g.token)}`;\n  const listHtml = g.subtasks.length\n    ? `<ul style=\"margin:10px 0 16px 18px;padding:0;\">${g.subtasks.map(n => `<li>${n}</li>`).join(\"\")}</ul>`\n    : \"\";\n\n  const subject = `Neuer Reparaturauftrag ${g.appNumber ? `(${g.appNumber})` : \"\"} | Nuova richiesta di riparazione`;\n\n  const html = `\n<!doctype html>\n<html>\n  <body style=\"margin:0;padding:0;background:#ffffff;\">\n    <div style=\"font-family:Helvetica, Arial, sans-serif;padding:24px;font-size:14px;line-height:20px;color:#111111;\">\n\n      <p style=\"margin:0 0 10px 0;\">\n        Neuer Reparaturauftrag erstellt:\n      </p>\n      ${listHtml}\n\n      <p style=\"margin:0 0 18px 0;\">\n        Öffne die Schadensmeldung:<br>\n        <a href=\"${link}\" target=\"_blank\" style=\"color:#0a7cff;text-decoration:underline;\">${link}</a>\n      </p>\n\n      <hr style=\"border:none;border-top:1px solid #e5e7eb;margin:24px 0;\">\n\n      <p style=\"margin:0 0 10px 0;\">\n        Nuova richiesta di riparazione creata:\n      </p>\n      ${listHtml}\n\n      <p style=\"margin:0;\">\n        Apri la segnalazione:<br>\n        <a href=\"${link}\" target=\"_blank\" style=\"color:#0a7cff;text-decoration:underline;\">${link}</a>\n      </p>\n\n      <div style=\"margin-top:30px;border-top:1px solid #e5e7eb;padding-top:20px;\">\n        ${footer}\n      </div>\n\n    </div>\n  </body>\n</html>\n`;\n\n  results.push({\n    json: {\n      mail: g.mail,\n      subject,\n      html,\n      nowIso: g.nowIso,\n      parentTaskId: g.parentTaskId,\n      id: g.datatableRowId,\n    },\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        -320
+      ],
+      "id": "700c6109-a674-4f01-909e-1e430e3f274e",
+      "name": "Build HTML + footer (grouped by parentTaskId)\""
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "set - fields for lookup": {
+      "main": [
+        [
+          {
+            "node": "merge - row + subtask",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "datatable - get owner row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "datatable - get owner row": {
+      "main": [
+        [
+          {
+            "node": "merge - row + subtask",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "merge - row + subtask": {
+      "main": [
+        [
+          {
+            "node": "if - row exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if - row exists": {
+      "main": [
+        [
+          {
+            "node": "code - check 24h cooldown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "code - check 24h cooldown": {
+      "main": [
+        [
+          {
+            "node": "if - can send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if - can send": {
+      "main": [
+        [
+          {
+            "node": "datatable - update lastEmailSentAt",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build HTML + footer (grouped by parentTaskId)\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gmail - send new subtask email": {
+      "main": [
+        []
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get many tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many tasks": {
+      "main": [
+        [
+          {
+            "node": "if - only subtasks1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if - only subtasks1": {
+      "main": [
+        [
+          {
+            "node": "code - created in last 300 minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "code - created in last 300 minutes": {
+      "main": [
+        [
+          {
+            "node": "set - fields for lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML + footer (grouped by parentTaskId)\"": {
+      "main": [
+        [
+          {
+            "node": "gmail - send new subtask email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "18dde4e8-4a7c-4efb-ab5f-fad1900346af",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "590fc68a97e38023c3d2a62d0bb8bf0b685833354062f07ffccd7262074efb25"
+  },
+  "id": "-1KZWtI1wzToPm1wZkZ3D",
+  "tags": []
+}
