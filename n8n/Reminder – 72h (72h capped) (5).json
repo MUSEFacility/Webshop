@@ -1,0 +1,640 @@
+{
+  "name": "Reminder – 72h (72h capped)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 12
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "96923664-6b7d-4094-90c3-4248894a3480",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "getAll",
+        "team": "4760669",
+        "space": "90150214619",
+        "folderless": true,
+        "list": "901520930726",
+        "filters": {
+          "archived": false,
+          "includeClosed": false,
+          "subtasks": true
+        }
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "71028c1b-cc25-423a-9db7-6e577b08727f",
+      "name": "clickup - list tasks (repairs list)",
+      "credentials": {
+        "clickUpOAuth2Api": {
+          "id": "34jDYBMeiCkrARE9",
+          "name": "Lukas - ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "39cdb6e4-41de-40aa-bfe1-9ff0837ff00f",
+              "leftValue": "={{$json.parent}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "534201a5-f6e0-4fb9-a36d-62898310c8ab",
+      "name": "if - only subtasks"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const createdMs = Number($json.date_created ?? 0);\nconst now = Date.now();\n\nconst ageOk = createdMs && (now - createdMs) >= 72 * 60 * 60 * 1000;\n\nif (!ageOk) return null;\n\nreturn {\n  ...$json,\n  parentTaskId: $json.parent,\n  nowIso: new Date(now).toISOString(),\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        -96
+      ],
+      "id": "45b22a85-801f-478e-8e58-81c7cced8a17",
+      "name": "code - older than 72h"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6accb8da-5180-4a58-8471-ae9e70b4a70d",
+              "name": "parentTaskId",
+              "value": "={{$json.parentTaskId}}",
+              "type": "string"
+            },
+            {
+              "id": "31fed71f-9b03-4b05-99b3-8193152bbee8",
+              "name": "subtaskId",
+              "value": "={{$json.id}}",
+              "type": "string"
+            },
+            {
+              "id": "cba4f7ec-caf7-4faf-9c2a-863cad1d77ed",
+              "name": "subtaskName",
+              "value": "={{$json.name}}",
+              "type": "string"
+            },
+            {
+              "id": "b163ac55-4638-470b-be14-24b7a6c24176",
+              "name": "subtaskUrl",
+              "value": "={{$json.url}}",
+              "type": "string"
+            },
+            {
+              "id": "90cc07ab-3019-47fe-9d8c-e963fdd5fe47",
+              "name": "subtaskCreatedAt",
+              "value": "={{$json.date_created}}",
+              "type": "string"
+            },
+            {
+              "id": "67aaa415-9662-4889-9943-cf0665fd03e4",
+              "name": "nowIso",
+              "value": "={{$json.nowIso}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1040,
+        -32
+      ],
+      "id": "1096cd3d-a328-40d4-bbcf-795e6774ba44",
+      "name": "set - fields for lookup"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Ot0VApHdAKXgUQTr",
+          "mode": "list",
+          "cachedResultName": "repair_tokens",
+          "cachedResultUrl": "/projects/5yW1jW7R5grGIkAM/datatables/Ot0VApHdAKXgUQTr"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "parentTaskId",
+              "keyValue": "={{$json.parentTaskId}}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1216,
+        80
+      ],
+      "id": "1197d3f0-5499-48af-b7e8-932963ffbd5b",
+      "name": "datatable - get owner row"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {
+          "includeUnpaired": true
+        }
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1408,
+        -16
+      ],
+      "id": "afe7cf40-d18b-45b6-867d-15b81b434aeb",
+      "name": "merge - row + subtask"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "00b9ade6-71b4-4c59-b928-7fefa15cab97",
+              "leftValue": "={{$json.id}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1600,
+        -16
+      ],
+      "id": "3f09ea6a-66e7-4207-854a-7a3a08fdd45f",
+      "name": "if - owner row found"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2fcda105-fec5-45c1-b660-634df28cbb11",
+              "leftValue": "={{$json.canSend}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2048,
+        -32
+      ],
+      "id": "d860d276-993a-460a-8dbc-64647fbf5925",
+      "name": "if - can send reminder"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ from: 'MUSE.holiday <shop@muse.services>', to: [$json.mail], bcc: ['facilitymuse@gmail.com'], subject: $json.subject, html: $json.html }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2464,
+        -208
+      ],
+      "id": "f1143e32-2371-4297-acec-5c90b46fc364",
+      "name": "gmail - send reminder",
+      "webhookId": "3f456443-a3ab-4dc9-805b-de9d5a4c867e",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_HEADER_AUTH_ID",
+          "name": "Resend API (Header Auth)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Ot0VApHdAKXgUQTr",
+          "mode": "list",
+          "cachedResultName": "repair_tokens",
+          "cachedResultUrl": "/projects/5yW1jW7R5grGIkAM/datatables/Ot0VApHdAKXgUQTr"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyValue": "={{$json.id}}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lastEmailSentAt": "={{$json.nowIso}}",
+            "lastEmailType": "Reminder"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "AppNumber",
+              "displayName": "AppNumber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "parentTaskId",
+              "displayName": "parentTaskId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "token",
+              "displayName": "token",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "mail",
+              "displayName": "mail",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "lastEmailSentAt",
+              "displayName": "lastEmailSentAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "lastEmailType",
+              "displayName": "lastEmailType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2384,
+        -48
+      ],
+      "id": "bf9dd724-7f20-4fa6-99ce-549d81bb2598",
+      "name": "datatable - update lastEmailSentAt"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const now = Date.now();\nconst lastRaw = $json.lastEmailSentAt ?? null;\nconst lastMs = lastRaw ? Date.parse(lastRaw) : 0;\n\nconst canSend = !lastMs || (now - lastMs) >= 72 * 60 * 60 * 1000;\n\nreturn {\n  ...$json,\n  canSend,\n  nowIso: new Date(now).toISOString(),\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        -32
+      ],
+      "id": "503eb0ab-a5c8-4c5f-9d42-dea89bdcdfa3",
+      "name": "code - check 72h cooldown"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1cdf9605-3fe0-4f54-a24a-6500f7d1d050",
+              "leftValue": "={{$json.status.status}}",
+              "rightValue": "COMUNICATO",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "ddfb5a5e-9c9b-4df9-a1de-312049a4f53c",
+              "leftValue": "={{$json.status.status}}",
+              "rightValue": "IN CORSO",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        640,
+        -16
+      ],
+      "id": "6e25ee3d-9968-4799-99f1-bdcfb24a3555",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: \"Build Reminder HTML + footer (one email per main task)\"\n// IMPORTANT: Set node Mode = Run Once for All Items\n\nconst items = $input.all();\n\n// Footer (unchanged)\nconst footer = `\n<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" align=\"center\" style=\"border-collapse:collapse;margin:0 auto;\">\n  <tr>\n    <td style=\"padding:0 12px 0 0;\">\n      <a href=\"https://www.instagram.com/muse.holiday/\" target=\"_blank\">\n        <img src=\"https://cdn.muse.holiday/instagram-blue_3x.png\" width=\"24\" height=\"24\" border=\"0\" style=\"display:block;\">\n      </a>\n    </td>\n    <td style=\"padding:0 12px 0 0;\">\n      <a href=\"https://www.facebook.com/muse.holiday/\" target=\"_blank\">\n        <img src=\"https://cdn.muse.holiday/facebook-blue_3x.png\" width=\"24\" height=\"24\" border=\"0\" style=\"display:block;\">\n      </a>\n    </td>\n    <td style=\"padding:0 12px 0 0;\">\n      <a href=\"https://tiktok.com/@muse.holiday/\" target=\"_blank\">\n        <img src=\"https://cdn.muse.holiday/tiktok-blue_3x.png\" width=\"24\" height=\"24\" border=\"0\" style=\"display:block;\">\n      </a>\n    </td>\n    <td style=\"padding:0 12px 0 0;\">\n      <a href=\"https://wa.me/390471786250\" target=\"_blank\">\n        <img src=\"https://cdn.muse.holiday/whatsapp-blue_3x.png\" width=\"24\" height=\"24\" border=\"0\" style=\"display:block;\">\n      </a>\n    </td>\n    <td>\n      <a href=\"https://www.iata.org/\" target=\"_blank\">\n        <img src=\"https://cdn.muse.holiday/iata-blue_3x.png\" width=\"24\" height=\"24\" border=\"0\" style=\"display:block;\">\n      </a>\n    </td>\n  </tr>\n</table>\n\n<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\" style=\"border-collapse:collapse;margin:18px 0 0 0;\">\n  <tr>\n    <td align=\"center\" style=\"padding:18px 0 0 0;\">\n      <img src=\"https://cdn.muse.holiday/logo.png?w=130&amp;h=80\" width=\"130\" height=\"80\" border=\"0\" style=\"display:block;margin:0 auto;\">\n    </td>\n  </tr>\n  <tr>\n    <td align=\"center\" style=\"padding:12px 0 0 0;font-family:Helvetica, Arial, sans-serif;font-size:14px;line-height:20px;color:#033A53;\">\n      <div style=\"font-weight:700;\">Apartment4holiday Srl</div>\n      <div>IT02875780211</div>\n      <div>IATA TIDS 96191852</div>\n    </td>\n  </tr>\n</table>\n`;\n\n// Group by main task\nconst grouped = {};\n\nfor (const item of items) {\n  const j = item.json;\n  const parentTaskId = j.parentTaskId;\n  if (!parentTaskId) continue;\n\n  if (!grouped[parentTaskId]) {\n    grouped[parentTaskId] = {\n      parentTaskId,\n      mail: j.mail,\n      token: j.token ?? \"\",\n      nowIso: j.nowIso,\n      datatableRowId: j.id,\n      appNumber: j.AppNumber ?? \"\",\n      subtasks: [],\n    };\n  }\n\n  if (j.subtaskName) grouped[parentTaskId].subtasks.push(j.subtaskName);\n}\n\nconst results = [];\n\nfor (const parentTaskId of Object.keys(grouped)) {\n  const g = grouped[parentTaskId];\n\n  const link = `https://www.musevision.it/?token=${encodeURIComponent(g.token)}`;\n\n  const listHtml = g.subtasks.length\n    ? `<ul style=\"margin:10px 0 16px 18px;padding:0;\">${g.subtasks.map(n => `<li>${n}</li>`).join(\"\")}</ul>`\n    : \"\";\n\n  const subject = `Erinnerung ${g.appNumber ? `(${g.appNumber}) ` : \"\"}: Reparaturauftrag noch offen | Promemoria ${g.appNumber ? `(${g.appNumber}) ` : \"\"}: richiesta ancora aperta`;\n\n  const html = `\n<!doctype html>\n<html>\n  <body style=\"margin:0;padding:0;background:#ffffff;\">\n    <div style=\"font-family:Helvetica, Arial, sans-serif;padding:24px;font-size:14px;line-height:20px;color:#111111;\">\n\n      <p style=\"margin:0 0 10px 0;\">\n        Erinnerung: Folgende Reparaturaufgaben sind noch offen (älter als 72 Stunden):\n      </p>\n\n      ${listHtml}\n\n      <p style=\"margin:0 0 18px 0;\">\n        Öffne die Schadensmeldung:<br>\n        <a href=\"${link}\" target=\"_blank\" style=\"color:#0a7cff;text-decoration:underline;\">\n          ${link}\n        </a>\n      </p>\n\n      <hr style=\"border:none;border-top:1px solid #e5e7eb;margin:24px 0;\">\n\n      <p style=\"margin:0 0 10px 0;\">\n        Promemoria: le seguenti richieste di riparazione sono ancora aperte (oltre 72 ore):\n      </p>\n\n      ${listHtml}\n\n      <p style=\"margin:0;\">\n        Apri la segnalazione:<br>\n        <a href=\"${link}\" target=\"_blank\" style=\"color:#0a7cff;text-decoration:underline;\">\n          ${link}\n        </a>\n      </p>\n\n      <div style=\"margin-top:30px;border-top:1px solid #e5e7eb;padding-top:20px;\">\n        ${footer}\n      </div>\n\n    </div>\n  </body>\n</html>\n`;\n\n  results.push({\n    json: {\n      mail: g.mail,\n      subject,\n      html,\n      nowIso: g.nowIso,\n      parentTaskId: g.parentTaskId,\n      id: g.datatableRowId,\n    },\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        -208
+      ],
+      "id": "32dbb98a-1c84-4ab7-a0c8-a1753fc2fe3b",
+      "name": "Build Reminder HTML + footer (one email per main task)"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "clickup - list tasks (repairs list)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "clickup - list tasks (repairs list)": {
+      "main": [
+        [
+          {
+            "node": "if - only subtasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if - only subtasks": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "code - older than 72h": {
+      "main": [
+        [
+          {
+            "node": "set - fields for lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "set - fields for lookup": {
+      "main": [
+        [
+          {
+            "node": "datatable - get owner row",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "merge - row + subtask",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "datatable - get owner row": {
+      "main": [
+        [
+          {
+            "node": "merge - row + subtask",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "merge - row + subtask": {
+      "main": [
+        [
+          {
+            "node": "if - owner row found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if - owner row found": {
+      "main": [
+        [
+          {
+            "node": "code - check 72h cooldown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if - can send reminder": {
+      "main": [
+        [
+          {
+            "node": "datatable - update lastEmailSentAt",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Reminder HTML + footer (one email per main task)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gmail - send reminder": {
+      "main": [
+        []
+      ]
+    },
+    "code - check 72h cooldown": {
+      "main": [
+        [
+          {
+            "node": "if - can send reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "code - older than 72h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reminder HTML + footer (one email per main task)": {
+      "main": [
+        [
+          {
+            "node": "gmail - send reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "0cd538ca-6458-4ba3-9d4b-ff27af0a4a49",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "590fc68a97e38023c3d2a62d0bb8bf0b685833354062f07ffccd7262074efb25"
+  },
+  "id": "pENjcg9SXv-cE45beMyhN",
+  "tags": []
+}

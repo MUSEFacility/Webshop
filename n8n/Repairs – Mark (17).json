@@ -1,0 +1,371 @@
+{
+  "name": "Repairs – Mark",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repairs-mark",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        48,
+        352
+      ],
+      "id": "0cca3c86-8fa2-48a3-820a-4eb5708dfef0",
+      "name": "Webhook",
+      "webhookId": "c4dc4e1c-436b-4a96-9ca2-968a1de8ccc5"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1696,
+        368
+      ],
+      "id": "7a4480f5-21fd-4929-b657-9df0129650ee",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "setCustomField",
+        "task": "={{$node[\"Code in JavaScript\"].json.subtaskId}}",
+        "field": "8d333333-de44-4f45-b4d1-079540d99313",
+        "value": "={{$node[\"Code in JavaScript\"].json.commentText}}"
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        1216,
+        192
+      ],
+      "id": "d5048781-1e6e-4067-b6a0-24c7760f5f70",
+      "name": "Set a custom Field on a task",
+      "credentials": {
+        "clickUpOAuth2Api": {
+          "id": "34jDYBMeiCkrARE9",
+          "name": "Lukas - ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "comment",
+        "commentOn": "task",
+        "id": "={{$node[\"Code in JavaScript\"].json.subtaskId}}",
+        "commentText": "=Aggiornato dal proprietario il {{$now.format(\"yyyy-MM-dd HH:mm\")}}.\nStatus: {{$node[\"Code in JavaScript\"].json.status}}\nMotivo: {{$node[\"Code in JavaScript\"].json.commentText}}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        1488,
+        192
+      ],
+      "id": "66147be2-5a5d-41e1-963c-c30b24d1412d",
+      "name": "Create a comment",
+      "credentials": {
+        "clickUpOAuth2Api": {
+          "id": "34jDYBMeiCkrARE9",
+          "name": "Lukas - ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Ot0VApHdAKXgUQTr",
+          "mode": "list",
+          "cachedResultName": "repair_tokens",
+          "cachedResultUrl": "/projects/5yW1jW7R5grGIkAM/datatables/Ot0VApHdAKXgUQTr"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "token",
+              "keyValue": "={{$json.body.token}}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        256,
+        352
+      ],
+      "id": "28bee377-d376-484c-8812-6be188ca9328",
+      "name": "Get row(s)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $node[\"Webhook\"].json.body ?? {};\n\nconst token = body.token;\nconst subtaskId = body.subtaskId;\n\nconst commentText = (body.commentText || \"\").toString().trim();\nconst action = (body.action || \"\").toString().toLowerCase().trim();\nlet status = (body.status || \"\").toString().trim();\n\n// your Data Table row has parentTaskid (as shown in your input)\nconst parentTaskId = $json.parentTaskid || $json.parentTaskId || null;\n\nif (!token || !subtaskId) {\n  return [{ json: { ok: false, error: \"bad_request\", got: { token, subtaskId } } }];\n}\n\nif (!parentTaskId) {\n  return [{ json: { ok: false, error: \"unknown_token\", got: { token } } }];\n}\n\nif (!status) {\n  if (action === \"complete\" || action === \"completato\") status = \"COMPLETATO\";\n  else if (action === \"in_corso\" || action === \"incorso\") status = \"IN CORSO\";\n  else if (action === \"rifiutato\") status = \"RIFIUTATO\";\n}\n\nconst allowed = new Set([\"COMPLETATO\", \"IN CORSO\", \"RIFIUTATO\"]);\nif (!allowed.has(status)) {\n  return [{ json: { ok: false, error: \"invalid_status\", got: { status, action } } }];\n}\n\nif (status === \"RIFIUTATO\" && !commentText) {\n  return [{ json: { ok: false, error: \"comment_required\" } }];\n}\n\nreturn [{\n  json: { ok: true, token, subtaskId, parentTaskId, status, commentText }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        352
+      ],
+      "id": "0ebaa48b-cd4c-4bc8-abd8-5522dfd20181",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "59ba0d9b-1638-4b97-b5b1-8105085c8adf",
+              "leftValue": "={{$json.ok}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        352
+      ],
+      "id": "1ecf4369-12ed-4b54-bcd7-4b5cce72a02d",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2e3e69a2-bd02-422b-aac9-2ee4877ee171",
+              "leftValue": "={{$json.status.status}}",
+              "rightValue": "RIFIUTATO",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        992,
+        272
+      ],
+      "id": "847dda4f-4991-4420-9dd0-72ca481b410a",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "update",
+        "id": "={{$json.subtaskId}}",
+        "updateFields": {
+          "status": "={{$json.status}}"
+        }
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        848,
+        192
+      ],
+      "id": "eca8988c-7ce1-44e5-807a-1d73dbb047f8",
+      "name": "Update a task",
+      "credentials": {
+        "clickUpOAuth2Api": {
+          "id": "34jDYBMeiCkrARE9",
+          "name": "Lukas - ClickUp account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set a custom Field on a task": {
+      "main": [
+        [
+          {
+            "node": "Create a comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a comment": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s)": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Update a task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Set a custom Field on a task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a task": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create a comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "fd185490-41b2-4953-a732-c0ca4addd25f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "590fc68a97e38023c3d2a62d0bb8bf0b685833354062f07ffccd7262074efb25"
+  },
+  "id": "nn3aZ3sXYpCliE8Q",
+  "tags": []
+}
