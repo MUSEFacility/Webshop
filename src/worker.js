@@ -20,24 +20,6 @@ function slug(s) {
     .slice(0, 80) || 'unknown';
 }
 
-// Fixed product list for pivoted CSV export. Order = column order in CSV.
-// Union of all titles in public/catalog.json (external + muse regions).
-const EXPORT_PRODUCTS = [
-  'Asciugamano bagno 100×150',
-  'Lenzuolo Deluxe 2P 200×210',
-  'Lenzuolo Deluxe 1P 100×210',
-  'Lenzuolo 2P 240×300',
-  'Lenzuolo 1P 160×300',
-  'Federa grande 60×80',
-  'Federa piccola 50×80',
-  'Copripiumino 1P 135×200',
-  'Tovaglia 150×150',
-  'Strofinacci bicchieri 50×70',
-  'Scendibagno 50×90',
-  'Asciugamano bidet 40×60',
-  'Asciugamano viso 50×100'
-];
-
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -1020,11 +1002,32 @@ app.get('/admin/export-orders.csv', requireAdminAuth, async (c) => {
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
 
-    const productSlugs = EXPORT_PRODUCTS.map(slug);
+    // Build the column list dynamically: every product_id ever seen in
+    // order_items (with its latest title) plus every product currently in
+    // the catalog (so newly-added products show up before any orders exist).
+    const fromOrders = await db.query(
+      `SELECT product_id, product_title, MAX(id) AS _latest
+       FROM order_items GROUP BY product_id`
+    );
+    const fromCatalog = await db.query(
+      `SELECT DISTINCT title FROM products WHERE active = 1`
+    );
+    const titleByProductId = new Map();
+    for (const r of (fromOrders.results || [])) {
+      titleByProductId.set(r.product_id, r.product_title);
+    }
+    for (const p of (fromCatalog.results || [])) {
+      const id = slug(p.title);
+      if (!titleByProductId.has(id)) titleByProductId.set(id, p.title);
+    }
+    const productCols = [...titleByProductId.entries()]
+      .map(([id, title]) => ({ id, title }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+
     const header = [
       'order_id','created_at_iso','region','customer_name','customer_email',
       'order_total_eur','item_count',
-      ...EXPORT_PRODUCTS
+      ...productCols.map(p => p.title)
     ];
     const lines = [header.map(csvEscape).join(',')];
     for (const o of orders.values()) {
@@ -1037,7 +1040,7 @@ app.get('/admin/export-orders.csv', requireAdminAuth, async (c) => {
         (o.total_cents / 100).toFixed(2),
         o.item_count
       ];
-      const productQtys = productSlugs.map(s => o.qtys[s] || 0);
+      const productQtys = productCols.map(p => o.qtys[p.id] || 0);
       lines.push([...base, ...productQtys].map(csvEscape).join(','));
     }
 
