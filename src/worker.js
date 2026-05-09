@@ -1274,6 +1274,30 @@ app.post('/api/repairs/mark', async (c) => {
   }
 });
 
+// Temporary admin endpoint to run a scan on demand. Useful while
+// validating the cutover from n8n; remove once the schedule has fired
+// cleanly a couple of times. Gated by ADMIN_PW via X-Admin-Token header.
+app.post('/api/repairs/_admin/run-scan', async (c) => {
+  if (c.req.header('X-Admin-Token') !== c.env.ADMIN_PW) {
+    return c.json({ error: 'forbidden' }, 403);
+  }
+  const type = String(c.req.query('type') || '').toLowerCase().trim();
+  const t0 = Date.now();
+  try {
+    if (type === 'new') {
+      await runNewSubtaskScan(c.env);
+    } else if (type === 'reminder') {
+      await runReminderScan(c.env);
+    } else {
+      return c.json({ error: 'type must be "new" or "reminder"' }, 400);
+    }
+    return c.json({ ok: true, type, durationMs: Date.now() - t0 });
+  } catch (err) {
+    console.error(`run-scan ${type} failed:`, err);
+    return c.json({ ok: false, type, error: err.message, durationMs: Date.now() - t0 }, 500);
+  }
+});
+
 export default {
   async fetch(request, env, ctx) {
     return app.fetch(request, env, ctx);

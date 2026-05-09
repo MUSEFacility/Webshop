@@ -1,3 +1,14 @@
 node_modules/
 .env
 .claude/
+
+# Wrangler local state + cache
+.wrangler/
+
+# Lockfile intentionally not tracked
+package-lock.json
+
+# Private data — owner emails, repair tokens. Never commit.
+repair_tokens.csv
+seed.sql
+seed_backfill.sql
