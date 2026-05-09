@@ -18,7 +18,10 @@
 // Reads D1 via `wrangler d1 execute muse --remote --json --command`, so
 // it has the same auth/permissions as your existing wrangler commands.
 
-import { execFileSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
+import { writeFileSync, unlinkSync, mkdtempSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const apply = process.argv.includes('--apply');
 const base = process.env.MUSE_REVIEWS_BASE || 'https://muse-reviews.fly.dev';
@@ -31,14 +34,20 @@ if (!process.env.APP_USER || !process.env.APP_PASS) {
 const auth = Buffer.from(`${process.env.APP_USER}:${process.env.APP_PASS}`).toString('base64');
 
 console.log('Reading D1.repair_tokens...');
-const d1Out = execFileSync(
-  'npx',
-  [
-    'wrangler', 'd1', 'execute', 'muse', '--remote', '--json',
-    '--command', 'SELECT parent_task_id, token FROM repair_tokens',
-  ],
-  { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'inherit'], shell: true },
-);
+// Pipe the SQL via a temp .sql file rather than --command, to dodge
+// PowerShell/cmd argument-splitting on the inline SQL string.
+const tmp = mkdtempSync(join(tmpdir(), 'sync-tokens-'));
+const sqlFile = join(tmp, 'q.sql');
+writeFileSync(sqlFile, 'SELECT parent_task_id, token FROM repair_tokens;', 'utf-8');
+let d1Out;
+try {
+  d1Out = execSync(
+    `npx wrangler d1 execute muse --remote --json --file="${sqlFile}"`,
+    { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'inherit'], shell: true },
+  );
+} finally {
+  try { unlinkSync(sqlFile); } catch {}
+}
 const d1Parsed = JSON.parse(d1Out);
 const d1Rows = Array.isArray(d1Parsed) ? d1Parsed[0]?.results ?? [] : d1Parsed.results ?? [];
 console.log(`D1 rows: ${d1Rows.length}`);
