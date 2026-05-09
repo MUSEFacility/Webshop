@@ -8,9 +8,13 @@
 --   NewSubtask  -> 24h cooldown
 --   Reminder    -> 72h cooldown
 
+-- Token is intentionally NOT UNIQUE: the n8n data table this seeds from
+-- has at least one collision (apps 119 + 121 share a token). Preserving
+-- that behavior keeps the migration a clean lift-and-shift; deduping is
+-- a separate data-hygiene task. The lookup uses LIMIT 1.
 CREATE TABLE IF NOT EXISTS repair_tokens (
   parent_task_id      TEXT PRIMARY KEY,
-  token               TEXT NOT NULL UNIQUE,
+  token               TEXT NOT NULL,
   app_number          INTEGER,
   last_email_sent_at  TEXT,
   last_email_type     TEXT,
