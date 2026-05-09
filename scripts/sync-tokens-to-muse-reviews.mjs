@@ -48,7 +48,18 @@ try {
 } finally {
   try { unlinkSync(sqlFile); } catch {}
 }
-const d1Parsed = JSON.parse(d1Out);
+// Wrangler v4 mixes progress markers (├, 🌀) with JSON on stdout even with
+// --json. Strip everything before the first [ or { that begins a balanced
+// JSON value — pragmatic, avoids any wrangler-version coupling.
+function extractJson(s) {
+  const firstArr = s.indexOf('\n[');
+  const firstObj = s.indexOf('\n{');
+  const candidates = [firstArr, firstObj].filter((i) => i >= 0);
+  const start = candidates.length ? Math.min(...candidates) + 1 : (s.startsWith('[') || s.startsWith('{') ? 0 : -1);
+  if (start < 0) throw new Error(`No JSON found in wrangler output:\n${s.slice(0, 500)}`);
+  return s.slice(start).trim();
+}
+const d1Parsed = JSON.parse(extractJson(d1Out));
 const d1Rows = Array.isArray(d1Parsed) ? d1Parsed[0]?.results ?? [] : d1Parsed.results ?? [];
 console.log(`D1 rows: ${d1Rows.length}`);
 
