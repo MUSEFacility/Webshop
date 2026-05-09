@@ -3,6 +3,11 @@ main = "src/worker.js"
 compatibility_date = "2025-11-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Bundle admin.html (served only after auth) as an inline Text module.
+rules = [
+  { type = "Text", globs = ["**/*.html"], fallthrough = true }
+]
+
 # Static assets (HTML, JSON, images) served directly by Cloudflare's asset
 # handler without invoking the Worker. Requests that don't match a file fall
 # through to the Worker below.
@@ -32,21 +37,27 @@ ENABLE_EMAIL_PREVIEWS = "false"
 EXPOSE_DECISION_URL = "false"
 # Address used as the From: on all outbound email. Must be on a Resend-verified domain.
 MAIL_FROM = "MUSE.holiday Shop <shop@muse.services>"
+# muse-reviews lookup base for the repairs cron + routes.
+MUSE_REVIEWS_API_BASE = "https://muse-reviews.fly.dev"
 
 # Secrets (set via `wrangler secret put <NAME>`):
 #   INTERNAL_PW
 #   ADMIN_PW
-#   CATALOG_PW         (optional — gates the catalog editor in /admin)
+#   CATALOG_PW              (optional — gates the catalog editor in /admin)
 #   QUOTE_SIGNING_SECRET
 #   RESEND_API_KEY
+#   CLICKUP_TOKEN           (Personal API Token from ClickUp profile → Apps)
+#   MUSE_REVIEWS_API_USER   (Basic Auth user for muse-reviews; same as APP_USER there)
+#   MUSE_REVIEWS_API_PASS
+
+# Repairs cron triggers. Replaces two scheduled n8n flows.
+#   every 6h:  scan ClickUp for subtasks created in the last 5h, email owners
+#   every 12h: scan for subtasks ≥72h old still in COMUNICATO/IN CORSO
+[triggers]
+crons = ["0 */6 * * *", "0 */12 * * *"]
 
 # Custom domain route. Uncomment once the muse.services zone is on Cloudflare
 # (nameservers flipped at united-domains) and the certificate has issued.
 # [[routes]]
 # pattern = "www.muse.services"
 # custom_domain = true
-
-# Bundle admin.html (served only after auth) as an inline Text module.
-rules = [
-  { type = "Text", globs = ["**/*.html"], fallthrough = true }
-]
