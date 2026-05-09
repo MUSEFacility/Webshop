@@ -49,17 +49,23 @@ try {
   try { unlinkSync(sqlFile); } catch {}
 }
 // Wrangler v4 mixes progress markers (├, 🌀) with JSON on stdout even with
-// --json. Strip everything before the first [ or { that begins a balanced
-// JSON value — pragmatic, avoids any wrangler-version coupling.
-function extractJson(s) {
-  const firstArr = s.indexOf('\n[');
-  const firstObj = s.indexOf('\n{');
-  const candidates = [firstArr, firstObj].filter((i) => i >= 0);
-  const start = candidates.length ? Math.min(...candidates) + 1 : (s.startsWith('[') || s.startsWith('{') ? 0 : -1);
-  if (start < 0) throw new Error(`No JSON found in wrangler output:\n${s.slice(0, 500)}`);
-  return s.slice(start).trim();
+// --json. The actual results payload always begins with `[{"results":` and
+// runs to the matching `}]` at the very end. Find that span and parse it.
+function extractResultsJson(s) {
+  const startMarker = '[{"results":';
+  const start = s.indexOf(startMarker);
+  if (start < 0) {
+    throw new Error(
+      `No '[{"results":...}]' payload in wrangler output. First 500 chars:\n${s.slice(0, 500)}`,
+    );
+  }
+  const lastBracket = s.lastIndexOf(']');
+  if (lastBracket < start) {
+    throw new Error('Truncated wrangler output');
+  }
+  return s.slice(start, lastBracket + 1);
 }
-const d1Parsed = JSON.parse(extractJson(d1Out));
+const d1Parsed = JSON.parse(extractResultsJson(d1Out));
 const d1Rows = Array.isArray(d1Parsed) ? d1Parsed[0]?.results ?? [] : d1Parsed.results ?? [];
 console.log(`D1 rows: ${d1Rows.length}`);
 
