@@ -19,9 +19,6 @@
 // it has the same auth/permissions as your existing wrangler commands.
 
 import { execSync } from 'node:child_process';
-import { writeFileSync, unlinkSync, mkdtempSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 
 const apply = process.argv.includes('--apply');
 const base = process.env.MUSE_REVIEWS_BASE || 'https://muse-reviews.fly.dev';
@@ -34,36 +31,45 @@ if (!process.env.APP_USER || !process.env.APP_PASS) {
 const auth = Buffer.from(`${process.env.APP_USER}:${process.env.APP_PASS}`).toString('base64');
 
 console.log('Reading D1.repair_tokens...');
-// Pipe the SQL via a temp .sql file rather than --command, to dodge
-// PowerShell/cmd argument-splitting on the inline SQL string.
-const tmp = mkdtempSync(join(tmpdir(), 'sync-tokens-'));
-const sqlFile = join(tmp, 'q.sql');
-writeFileSync(sqlFile, 'SELECT parent_task_id, token FROM repair_tokens;', 'utf-8');
-let d1Out;
-try {
-  d1Out = execSync(
-    `npx wrangler d1 execute muse --remote --json --file="${sqlFile}"`,
-    { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'inherit'], shell: true },
-  );
-} finally {
-  try { unlinkSync(sqlFile); } catch {}
-}
+// --command (not --file): SELECT results only come back from --command;
+// --file is for multi-statement imports and returns import meta only.
+// Inline SQL has no embedded quotes, so simple double-quote wrapping
+// passes cmd.exe parsing on Windows cleanly.
+const sql = 'SELECT parent_task_id, token FROM repair_tokens';
+const d1Out = execSync(
+  `npx wrangler d1 execute muse --remote --json --command "${sql}"`,
+  { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'inherit'], shell: true },
+);
+
 // Wrangler v4 mixes progress markers (├, 🌀) with JSON on stdout even with
-// --json. The actual results payload always begins with `[{"results":` and
-// runs to the matching `}]` at the very end. Find that span and parse it.
+// --json. The actual payload looks like `[ { "results": [...], ... } ]`
+// (multi-line, indented). Find the outermost JSON array containing
+// "results" and slice to it.
 function extractResultsJson(s) {
-  const startMarker = '[{"results":';
-  const start = s.indexOf(startMarker);
-  if (start < 0) {
+  const m = s.match(/\[\s*\{\s*"results"/);
+  if (!m) {
     throw new Error(
-      `No '[{"results":...}]' payload in wrangler output. First 500 chars:\n${s.slice(0, 500)}`,
+      `No '[{ "results": ... }]' payload in wrangler output.\nFirst 500 chars:\n${s.slice(0, 500)}`,
     );
   }
-  const lastBracket = s.lastIndexOf(']');
-  if (lastBracket < start) {
-    throw new Error('Truncated wrangler output');
+  const start = m.index;
+  // Walk forward counting brackets to find the matching closing ].
+  let depth = 0;
+  let inStr = false;
+  let escape = false;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === '[' || ch === '{') depth++;
+    else if (ch === ']' || ch === '}') {
+      depth--;
+      if (depth === 0) return s.slice(start, i + 1);
+    }
   }
-  return s.slice(start, lastBracket + 1);
+  throw new Error('Unterminated JSON in wrangler output');
 }
 const d1Parsed = JSON.parse(extractResultsJson(d1Out));
 const d1Rows = Array.isArray(d1Parsed) ? d1Parsed[0]?.results ?? [] : d1Parsed.results ?? [];
