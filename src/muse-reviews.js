@@ -1,34 +1,59 @@
-// src/muse-reviews.js — server-to-server lookup of owner email + language
-// from the muse-reviews app. Single endpoint:
-//   GET /api/properties/by-parent-task/:id → { property: PropertyConfig } | 404
+// src/muse-reviews.js — server-to-server lookup of property records.
 //
-// The result is cached in-memory per isolate for IN_MEMORY_TTL_MS so the
-// scans don't hammer Fly. Cache survives within a single Worker invocation
-// and may persist across invocations on a warm isolate; a 5-min TTL keeps
-// stale data short-lived.
+// Two endpoints used:
+//   GET /api/properties/by-parent-task/:id → { property } | 404   (cron lookup)
+//   GET /api/properties/by-token/:token    → { property } | 404   (HTTP routes)
+//
+// Both results are cached in-memory per isolate for IN_MEMORY_TTL_MS so the
+// scans don't hammer Fly. Cache may persist across invocations on a warm
+// isolate; a 5-min TTL bounds staleness — important for tokens, since a
+// freshly-rotated token in the Häuser tab would otherwise still 404 in
+// the Worker for up to that window.
 
 const IN_MEMORY_TTL_MS = 5 * 60 * 1000;
-const cache = new Map();
+const byParentCache = new Map();
+const byTokenCache = new Map();
 
-export async function getPropertyByParentTask(env, parentTaskId) {
-  const cached = cache.get(parentTaskId);
-  if (cached && Date.now() - cached.fetchedAt < IN_MEMORY_TTL_MS) {
-    return cached.property;
-  }
+function authHeader(env) {
   if (!env.MUSE_REVIEWS_API_BASE || !env.MUSE_REVIEWS_API_USER || !env.MUSE_REVIEWS_API_PASS) {
     throw new Error('muse-reviews credentials not configured');
   }
-  const auth = btoa(`${env.MUSE_REVIEWS_API_USER}:${env.MUSE_REVIEWS_API_PASS}`);
-  const url = `${env.MUSE_REVIEWS_API_BASE}/api/properties/by-parent-task/${encodeURIComponent(parentTaskId)}`;
-  const res = await fetch(url, { headers: { Authorization: `Basic ${auth}` } });
+  return `Basic ${btoa(`${env.MUSE_REVIEWS_API_USER}:${env.MUSE_REVIEWS_API_PASS}`)}`;
+}
+
+async function fetchProperty(env, path, key, cache) {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.fetchedAt < IN_MEMORY_TTL_MS) {
+    return cached.property;
+  }
+  const url = `${env.MUSE_REVIEWS_API_BASE}${path}`;
+  const res = await fetch(url, { headers: { Authorization: authHeader(env) } });
   if (res.status === 404) {
-    cache.set(parentTaskId, { property: null, fetchedAt: Date.now() });
+    cache.set(key, { property: null, fetchedAt: Date.now() });
     return null;
   }
   if (!res.ok) {
-    throw new Error(`muse-reviews lookup ${res.status} for ${parentTaskId}`);
+    throw new Error(`muse-reviews ${path} ${res.status}`);
   }
   const { property } = await res.json();
-  cache.set(parentTaskId, { property, fetchedAt: Date.now() });
+  cache.set(key, { property, fetchedAt: Date.now() });
   return property;
+}
+
+export async function getPropertyByParentTask(env, parentTaskId) {
+  return fetchProperty(
+    env,
+    `/api/properties/by-parent-task/${encodeURIComponent(parentTaskId)}`,
+    parentTaskId,
+    byParentCache,
+  );
+}
+
+export async function getPropertyByToken(env, token) {
+  return fetchProperty(
+    env,
+    `/api/properties/by-token/${encodeURIComponent(token)}`,
+    token,
+    byTokenCache,
+  );
 }
