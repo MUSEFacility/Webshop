@@ -15,6 +15,7 @@ import {
   postTaskComment,
   extractOwnerComment,
 } from './clickup.js';
+import { getPropertyByToken } from './muse-reviews.js';
 import { runNewSubtaskScan, runReminderScan } from './repairs-scans.js';
 import adminHtml from '../views/admin.html';
 
@@ -1132,18 +1133,15 @@ app.get('/admin/export.csv', requireAdminAuth, async (c) => {
    Replaces n8n webhooks: repairs-list, repairs-task, repairs-mark.
    Token is the auth — owners get magic links of the form
      https://www.muse.services/?token=...
-   The token resolves to a single ClickUp parent_task_id via D1. */
+   Tokens live in muse-reviews (Häuser tab → repair_token). The Worker
+   resolves a token to a ClickUp parent_task_id by calling muse-reviews. */
 
 const REPAIRS_ALLOWED_STATUSES = new Set(['COMPLETATO', 'IN CORSO', 'RIFIUTATO']);
 
 async function lookupParentByToken(c, token) {
   if (!token) return null;
-  const db = makeDb(c.env.DB);
-  const r = await db.query(
-    `SELECT parent_task_id FROM repair_tokens WHERE token = ? LIMIT 1`,
-    [token],
-  );
-  return r.results?.[0]?.parent_task_id ?? null;
+  const property = await getPropertyByToken(c.env, token);
+  return property?.owner?.clickup?.parent_task_id ?? null;
 }
 
 function subtaskImages(attachments) {

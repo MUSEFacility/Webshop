@@ -11,6 +11,10 @@
 // At 300-house scale, both scans rely on ClickUp server-side filters so
 // the list call returns a small, relevant slice instead of all parents +
 // historical subtasks.
+//
+// Source of truth: property config (owner email, language, repair_token,
+// display_name) lives in muse-reviews. D1 only tracks per-house cooldown
+// state (last_email_sent_at, last_email_type) keyed by parent_task_id.
 
 import { listTasksInList, REPAIRS_LIST_ID } from './clickup.js';
 import { getPropertyByParentTask } from './muse-reviews.js';
@@ -45,22 +49,37 @@ function groupByParent(tasks) {
   return out;
 }
 
-async function loadTokenRow(db, parentTaskId) {
+async function loadCooldown(db, parentTaskId) {
   const r = await db.query(
-    `SELECT token, app_number, last_email_sent_at, last_email_type
+    `SELECT last_email_sent_at, last_email_type
        FROM repair_tokens WHERE parent_task_id = ? LIMIT 1`,
     [parentTaskId],
   );
   return r.results?.[0] ?? null;
 }
 
+// Upsert cooldown state. Inserts a row if the parent_task_id is brand new
+// (e.g., a freshly-configured house in muse-reviews that has never been
+// emailed). app_number/token columns may still exist in the schema as
+// legacy state; we only write the columns we own.
 async function markEmailSent(db, parentTaskId, type, nowIso) {
   await db.query(
-    `UPDATE repair_tokens
-        SET last_email_sent_at = ?, last_email_type = ?
-      WHERE parent_task_id = ?`,
-    [nowIso, type, parentTaskId],
+    `INSERT INTO repair_tokens (parent_task_id, token, app_number, last_email_sent_at, last_email_type, created_at)
+       VALUES (?, '', NULL, ?, ?, ?)
+     ON CONFLICT(parent_task_id) DO UPDATE
+       SET last_email_sent_at = excluded.last_email_sent_at,
+           last_email_type    = excluded.last_email_type`,
+    [parentTaskId, nowIso, type, nowIso],
   );
+}
+
+// Pull the legacy app-number out of display_name. Most house IDs are like
+// "108" or "108 Penthouse"; first digit run wins. Returns the original
+// string if no digits are found, so the subject prefix never crashes.
+function appNumberFor(property) {
+  const dn = String(property?.display_name ?? '').trim();
+  const m = dn.match(/\d+/);
+  return m ? m[0] : dn;
 }
 
 export async function runNewSubtaskScan(env) {
@@ -78,24 +97,24 @@ export async function runNewSubtaskScan(env) {
 
   for (const [parentTaskId, subs] of grouped) {
     try {
-      const tokenRow = await loadTokenRow(db, parentTaskId);
-      if (!tokenRow) continue;
+      const property = await getPropertyByParentTask(env, parentTaskId);
+      if (!property) continue;                           // house not configured
+      if (!property.owner?.email) continue;              // no recipient
+      if (!property.repair_token) continue;              // no magic-link token yet
 
-      const lastMs = tokenRow.last_email_sent_at ? Date.parse(tokenRow.last_email_sent_at) : 0;
+      const cooldown = await loadCooldown(db, parentTaskId);
+      const lastMs = cooldown?.last_email_sent_at ? Date.parse(cooldown.last_email_sent_at) : 0;
       if (lastMs && now - lastMs < NEW_SUBTASK_COOLDOWN_MS) continue;
 
-      const property = await getPropertyByParentTask(env, parentTaskId);
-      if (!property?.owner?.email) continue;
-
       const html = renderNewSubtaskEmail({
-        token: tokenRow.token,
+        token: property.repair_token,
         subtaskNames: subs.map((s) => s.name).filter(Boolean),
       });
       await sendEmail(env, {
         from: FROM_ADDRESS,
         to: property.owner.email,
         bcc: NEW_SUBTASK_BCC,
-        subject: newSubtaskSubject(tokenRow.app_number),
+        subject: newSubtaskSubject(appNumberFor(property)),
         html,
       });
 
@@ -129,24 +148,24 @@ export async function runReminderScan(env) {
 
   for (const [parentTaskId, subs] of grouped) {
     try {
-      const tokenRow = await loadTokenRow(db, parentTaskId);
-      if (!tokenRow) continue;
+      const property = await getPropertyByParentTask(env, parentTaskId);
+      if (!property) continue;
+      if (!property.owner?.email) continue;
+      if (!property.repair_token) continue;
 
-      const lastMs = tokenRow.last_email_sent_at ? Date.parse(tokenRow.last_email_sent_at) : 0;
+      const cooldown = await loadCooldown(db, parentTaskId);
+      const lastMs = cooldown?.last_email_sent_at ? Date.parse(cooldown.last_email_sent_at) : 0;
       if (lastMs && now - lastMs < REMINDER_COOLDOWN_MS) continue;
 
-      const property = await getPropertyByParentTask(env, parentTaskId);
-      if (!property?.owner?.email) continue;
-
       const html = renderReminderEmail({
-        token: tokenRow.token,
+        token: property.repair_token,
         subtaskNames: subs.map((s) => s.name).filter(Boolean),
       });
       await sendEmail(env, {
         from: FROM_ADDRESS,
         to: property.owner.email,
         bcc: REMINDER_BCC,
-        subject: reminderSubject(tokenRow.app_number),
+        subject: reminderSubject(appNumberFor(property)),
         html,
       });
 
