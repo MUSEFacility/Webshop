@@ -1480,10 +1480,10 @@
       verifyAdminPassword:'/api/verify-admin-password',
       checkout:      '/checkout'
     },
-    n8n: {
-      list: 'https://museholiday.app.n8n.cloud/webhook/repairs-list',
-      mark: 'https://museholiday.app.n8n.cloud/webhook/repairs-mark',
-      task: 'https://museholiday.app.n8n.cloud/webhook/repairs-task'
+    repairs: {
+      list: '/api/repairs/list',
+      mark: '/api/repairs/mark',
+      task: '/api/repairs/task'
     }
   };
 
@@ -2178,9 +2178,9 @@
   /* ══════════════════════════════════════════
      RIPARAZIONI TAB
   ══════════════════════════════════════════ */
-  const LIST_URL = CONFIG.n8n.list;
-  const MARK_URL = CONFIG.n8n.mark;
-  const TASK_URL = CONFIG.n8n.task;
+  const LIST_URL = CONFIG.repairs.list;
+  const MARK_URL = CONFIG.repairs.mark;
+  const TASK_URL = CONFIG.repairs.task;
 
   const rListEl      = document.getElementById('r-list');
   const rMsgEl       = document.getElementById('r-msg');

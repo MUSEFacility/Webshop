@@ -7,6 +7,15 @@ import { Hono } from 'hono';
 import crypto from 'node:crypto';
 import { makeDb } from './db.js';
 import { sendEmail } from './mail.js';
+import {
+  getTask,
+  getTaskWithSubtasks,
+  updateTaskStatus,
+  setOwnerCommentField,
+  postTaskComment,
+  extractOwnerComment,
+} from './clickup.js';
+import { runNewSubtaskScan, runReminderScan } from './repairs-scans.js';
 import adminHtml from '../views/admin.html';
 
 /* ─────────────────────────── Helpers ─────────────────────────── */
@@ -1119,4 +1128,158 @@ app.get('/admin/export.csv', requireAdminAuth, async (c) => {
   }
 });
 
-export default app;
+/* ─────────────────────────── Repairs portal ───────────────────────────
+   Replaces n8n webhooks: repairs-list, repairs-task, repairs-mark.
+   Token is the auth — owners get magic links of the form
+     https://www.muse.services/?token=...
+   The token resolves to a single ClickUp parent_task_id via D1. */
+
+const REPAIRS_ALLOWED_STATUSES = new Set(['COMPLETATO', 'IN CORSO', 'RIFIUTATO']);
+
+async function lookupParentByToken(c, token) {
+  if (!token) return null;
+  const db = makeDb(c.env.DB);
+  const r = await db.query(
+    `SELECT parent_task_id FROM repair_tokens WHERE token = ? LIMIT 1`,
+    [token],
+  );
+  return r.results?.[0]?.parent_task_id ?? null;
+}
+
+function subtaskImages(attachments) {
+  if (!Array.isArray(attachments)) return [];
+  return attachments
+    .filter((a) => (a.mimetype || '').startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(a.url || ''))
+    .map((a) => a.url || a.url_download || a.url_thumb)
+    .filter(Boolean);
+}
+
+app.get('/api/repairs/list', async (c) => {
+  const token = String(c.req.query('token') || '').trim();
+  if (!token) return c.json({ error: 'missing_token' }, 400);
+
+  const parentTaskId = await lookupParentByToken(c, token);
+  if (!parentTaskId) return c.json({ error: 'unknown_token' }, 404);
+
+  try {
+    const parent = await getTaskWithSubtasks(c.env, parentTaskId);
+    const stubs = parent.subtasks || [];
+    if (stubs.length === 0) {
+      return c.json({
+        parent: { id: parent.id, name: parent.name },
+        subtasks: [],
+        message: 'No damages were reported, good job.',
+      });
+    }
+
+    const subtasks = [];
+    for (const st of stubs) {
+      const detail = await getTask(c.env, st.id);
+      subtasks.push({
+        id: detail.id,
+        name: detail.name,
+        status: detail.status?.status ?? null,
+        url: detail.url ?? null,
+        dateCreatedRaw: detail.date_created ?? null,
+        dateCreatedIso: detail.date_created
+          ? new Date(Number(detail.date_created)).toISOString()
+          : null,
+        description: (detail.description || '').trim(),
+        ownerComment: extractOwnerComment(detail.custom_fields),
+        images: subtaskImages(detail.attachments),
+      });
+    }
+
+    return c.json({ parent: { id: parent.id, name: parent.name }, subtasks });
+  } catch (err) {
+    console.error('GET /api/repairs/list:', err);
+    return c.json({ error: 'upstream_error' }, 502);
+  }
+});
+
+app.post('/api/repairs/task', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const subtaskId = String(body.subtaskId || '').trim();
+  const token = String(body.token || '').trim();
+  if (!subtaskId) return c.json({ error: 'missing_subtaskId' }, 400);
+  // The frontend always sends a token; if present, validate it. n8n's
+  // version ignored it, so absence is allowed for backward compat.
+  if (token) {
+    const parentTaskId = await lookupParentByToken(c, token);
+    if (!parentTaskId) return c.json({ error: 'unknown_token' }, 404);
+  }
+
+  try {
+    const t = await getTask(c.env, subtaskId);
+    return c.json({
+      id: t.id,
+      name: t.name || '',
+      description: (t.description || '').trim(),
+      status: t.status?.status || '',
+      images: subtaskImages(t.attachments),
+      ownerComment: extractOwnerComment(t.custom_fields),
+      dateCreatedRaw: t.date_created ?? null,
+      dateCreatedIso: t.date_created
+        ? new Date(Number(t.date_created)).toISOString()
+        : null,
+      url: t.url ?? null,
+    });
+  } catch (err) {
+    console.error('POST /api/repairs/task:', err);
+    return c.json({ error: 'upstream_error' }, 502);
+  }
+});
+
+app.post('/api/repairs/mark', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const token = String(body.token || '').trim();
+  const subtaskId = String(body.subtaskId || '').trim();
+  const commentText = String(body.commentText || '').trim();
+
+  // Accept either status= or action= (legacy aliases used by older flows).
+  let status = String(body.status || '').toUpperCase().trim();
+  const action = String(body.action || '').toLowerCase().trim();
+  if (!status) {
+    if (action === 'complete' || action === 'completato') status = 'COMPLETATO';
+    else if (action === 'in_corso' || action === 'incorso') status = 'IN CORSO';
+    else if (action === 'rifiutato') status = 'RIFIUTATO';
+  }
+
+  if (!token || !subtaskId) return c.json({ ok: false, error: 'bad_request' }, 400);
+  if (!REPAIRS_ALLOWED_STATUSES.has(status)) {
+    return c.json({ ok: false, error: 'invalid_status' }, 400);
+  }
+  if (status === 'RIFIUTATO' && !commentText) {
+    return c.json({ ok: false, error: 'comment_required' }, 400);
+  }
+
+  const parentTaskId = await lookupParentByToken(c, token);
+  if (!parentTaskId) return c.json({ ok: false, error: 'unknown_token' }, 404);
+
+  try {
+    await updateTaskStatus(c.env, subtaskId, status);
+    if (status === 'RIFIUTATO') {
+      await setOwnerCommentField(c.env, subtaskId, commentText);
+      const stamp = new Date().toISOString().replace('T', ' ').slice(0, 16);
+      await postTaskComment(
+        c.env,
+        subtaskId,
+        `Aggiornato dal proprietario il ${stamp}.\nStatus: ${status}\nMotivo: ${commentText}`,
+      );
+    }
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error('POST /api/repairs/mark:', err);
+    return c.json({ ok: false, error: 'upstream_error' }, 502);
+  }
+});
+
+export default {
+  async fetch(request, env, ctx) {
+    return app.fetch(request, env, ctx);
+  },
+  async scheduled(event, env, ctx) {
+    if (event.cron === '0 */6 * * *') ctx.waitUntil(runNewSubtaskScan(env));
+    else if (event.cron === '0 */12 * * *') ctx.waitUntil(runReminderScan(env));
+  },
+};
